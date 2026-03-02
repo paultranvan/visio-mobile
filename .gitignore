@@ -47,3 +47,15 @@ CLAUDE.md
 # Ruby / Fastlane
 vendor/bundle/
 Gemfile.lock
+
+# Signing
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
