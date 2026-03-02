@@ -483,6 +483,7 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
         .manage(state)
         .setup(|app| {
             // Store handle globally for the C video callback

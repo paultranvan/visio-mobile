@@ -21,6 +21,13 @@
       }
     ]
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["visio"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

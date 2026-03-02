@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import {
   RiMicLine,
   RiMicOffLine,
@@ -252,17 +253,28 @@ function HomeView({
   onOpenSettings,
   displayName,
   onDisplayNameChange,
+  deepLinkUrl,
+  onDeepLinkConsumed,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void;
   onOpenSettings: () => void;
   displayName: string;
   onDisplayNameChange: (name: string) => void;
+  deepLinkUrl: string | null;
+  onDeepLinkConsumed: () => void;
 }) {
   const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
   const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "error">("idle");
+
+  useEffect(() => {
+    if (deepLinkUrl) {
+      setMeetUrl(deepLinkUrl);
+      onDeepLinkConsumed();
+    }
+  }, [deepLinkUrl]);
 
   useEffect(() => {
     const slug = extractSlug(meetUrl);
@@ -1080,6 +1092,9 @@ export default function App() {
   const [showCamPicker, setShowCamPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Deep link
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
   // Meeting URL (set on join, used in info panel)
   const [currentMeetUrl, setCurrentMeetUrl] = useState("");
   // Display name (shared between Home and Settings)
@@ -1103,6 +1118,32 @@ export default function App() {
         if (s.theme) setTheme(s.theme);
       })
       .catch(() => {});
+  }, []);
+
+  // Deep link listener
+  useEffect(() => {
+    const unlisten = onOpenUrl((urls: string[]) => {
+      if (urls.length === 0) return;
+      const url = urls[0];
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "visio:") return;
+        const host = parsed.hostname;
+        const slug = parsed.pathname.replace(/^\//, "");
+        if (!host || !slug) return;
+
+        invoke<string[]>("get_meet_instances").then((instances) => {
+          if (instances.includes(host)) {
+            setView("home");
+            setDeepLinkUrl(`https://${host}/${slug}`);
+            setDeepLinkError(null);
+          } else {
+            setDeepLinkError(t("deepLink.unknownInstance").replace("{host}", host));
+          }
+        });
+      } catch { /* ignore malformed URLs */ }
+    });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // Apply theme to document
@@ -1365,12 +1406,24 @@ export default function App() {
       )}
       <main>
         {view === "home" && (
-          <HomeView
-            onJoin={handleJoin}
-            onOpenSettings={() => setShowSettings(true)}
-            displayName={displayName}
-            onDisplayNameChange={setDisplayName}
-          />
+          <>
+            <HomeView
+              onJoin={handleJoin}
+              onOpenSettings={() => setShowSettings(true)}
+              displayName={displayName}
+              onDisplayNameChange={setDisplayName}
+              deepLinkUrl={deepLinkUrl}
+              onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+            />
+            {deepLinkError && (
+              <div className="deep-link-error">
+                <span>{deepLinkError}</span>
+                <button onClick={() => setDeepLinkError(null)}>
+                  <RiCloseLine size={16} />
+                </button>
+              </div>
+            )}
+          </>
         )}
         {view === "call" && (
           <CallView
