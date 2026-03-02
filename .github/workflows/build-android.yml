@@ -26,6 +26,11 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-arm64
+
       - name: Set up Android NDK
         uses: android-actions/setup-android@v3
 
@@ -48,7 +53,7 @@ jobs:
       - name: Copy libwebrtc.jar
         run: |
           mkdir -p android/app/libs
-          WEBRTC_JAR=$(find target/release/build -name "libwebrtc.jar" -path "*/android-arm64-release/*" 2>/dev/null | head -1)
+          WEBRTC_JAR=$(find target -name "libwebrtc.jar" -path "*/android-arm64-release/*" 2>/dev/null | head -1)
           if [ -n "$WEBRTC_JAR" ]; then
             cp "$WEBRTC_JAR" android/app/libs/
           else
@@ -59,6 +64,10 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Decode Firebase service account
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 -d > /tmp/firebase-sa.json
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -74,8 +83,9 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PATH }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
           VERSION_CODE: ${{ github.run_number }}
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: bundle exec fastlane distribute
 
       - name: Upload APK artifact

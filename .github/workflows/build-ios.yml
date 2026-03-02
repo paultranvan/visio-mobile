@@ -23,6 +23,11 @@ jobs:
         with:
           targets: aarch64-apple-ios
 
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ios-arm64
+
       - name: Compile Rust native libraries
         run: cargo build --target aarch64-apple-ios -p visio-ffi -p visio-video --release
 
@@ -42,6 +47,7 @@ jobs:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: bundle exec fastlane distribute
 
       - name: Upload IPA artifact
