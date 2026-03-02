@@ -60,6 +60,9 @@ object VisioManager : VisioEventListener {
     private val _isHandRaised = MutableStateFlow(false)
     val isHandRaised: StateFlow<Boolean> = _isHandRaised.asStateFlow()
 
+    // Deep link: pre-fill room URL on HomeScreen
+    var pendingDeepLink: String? by mutableStateOf(null)
+
     // Observable state for language, theme, display name
     var currentLang by mutableStateOf("fr")
         private set

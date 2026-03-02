@@ -24,6 +24,21 @@ import uniffi.visio.ConnectionState
 
 class MainActivity : ComponentActivity() {
 
+    private fun parseDeepLink(intent: Intent?): String? {
+        val uri = intent?.data ?: return null
+        if (uri.scheme != "visio") return null
+        val host = uri.host ?: return null
+        val slug = uri.path?.trimStart('/') ?: return null
+        if (host.isBlank() || slug.isBlank()) return null
+
+        val instances = VisioManager.client.getMeetInstances()
+        return if (instances.contains(host)) {
+            "https://$host/$slug"
+        } else {
+            null
+        }
+    }
+
     private val pipActionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
@@ -56,6 +71,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        parseDeepLink(intent)?.let { VisioManager.pendingDeepLink = it }
+
         val filter = IntentFilter().apply {
             addAction(ACTION_TOGGLE_MIC)
             addAction(ACTION_HANGUP)
@@ -77,6 +94,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        parseDeepLink(intent)?.let { VisioManager.pendingDeepLink = it }
     }
 
     override fun onDestroy() {

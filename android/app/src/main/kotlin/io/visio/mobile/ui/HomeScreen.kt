@@ -55,6 +55,14 @@ fun HomeScreen(
     var roomStatus by remember { mutableStateOf("idle") }
     val slugRegex = remember { Regex("^[a-z]{3}-[a-z]{4}-[a-z]{3}$") }
 
+    LaunchedEffect(VisioManager.pendingDeepLink) {
+        val link = VisioManager.pendingDeepLink
+        if (link != null) {
+            roomUrl = link
+            VisioManager.pendingDeepLink = null
+        }
+    }
+
     LaunchedEffect(roomUrl) {
         val trimmed = roomUrl.trim().trimEnd('/')
         val candidate = if ('/' in trimmed) trimmed.substringAfterLast('/') else trimmed

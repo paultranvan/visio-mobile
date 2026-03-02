@@ -791,6 +791,10 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -820,6 +824,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_connection_state(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_disconnect(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_settings(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled(
@@ -845,6 +851,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_chat_open(
 fun uniffi_visio_ffi_checksum_method_visioclient_set_display_name(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_language(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_meet_instances(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_mic_enabled_on_join(
 ): Short
@@ -932,6 +940,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_connection_state(`ptr`: Pointer,uniff
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_disconnect(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_settings(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -957,6 +967,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_chat_open(`ptr`: Pointer,`open`: 
 fun uniffi_visio_ffi_fn_method_visioclient_set_display_name(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_language(`ptr`: Pointer,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_meet_instances(`ptr`: Pointer,`instances`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_mic_enabled_on_join(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -1123,6 +1135,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_settings() != 24786.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1160,6 +1175,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_meet_instances() != 55021.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_mic_enabled_on_join() != 39099.toShort()) {
@@ -1602,6 +1620,8 @@ public interface VisioClientInterface {
     
     fun `disconnect`()
     
+    fun `getMeetInstances`(): List<kotlin.String>
+    
     fun `getSettings`(): Settings
     
     fun `isCameraEnabled`(): kotlin.Boolean
@@ -1627,6 +1647,8 @@ public interface VisioClientInterface {
     fun `setDisplayName`(`name`: kotlin.String?)
     
     fun `setLanguage`(`lang`: kotlin.String?)
+    
+    fun `setMeetInstances`(`instances`: List<kotlin.String>)
     
     fun `setMicEnabledOnJoin`(`enabled`: kotlin.Boolean)
     
@@ -1804,6 +1826,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `getMeetInstances`(): List<kotlin.String> {
+            return FfiConverterSequenceString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `getSettings`(): Settings {
             return FfiConverterTypeSettings.lift(
     callWithPointer {
@@ -1952,6 +1986,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_language(
         it, FfiConverterOptionalString.lower(`lang`),_status)
+}
+    }
+    
+    
+
+    override fun `setMeetInstances`(`instances`: List<kotlin.String>)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_meet_instances(
+        it, FfiConverterSequenceString.lower(`instances`),_status)
 }
     }
     
@@ -2176,7 +2221,8 @@ data class Settings (
     var `language`: kotlin.String?, 
     var `micEnabledOnJoin`: kotlin.Boolean, 
     var `cameraEnabledOnJoin`: kotlin.Boolean, 
-    var `theme`: kotlin.String
+    var `theme`: kotlin.String, 
+    var `meetInstances`: List<kotlin.String>
 ) {
     
     companion object
@@ -2193,6 +2239,7 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterSequenceString.read(buf),
         )
     }
 
@@ -2201,7 +2248,8 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterOptionalString.allocationSize(value.`language`) +
             FfiConverterBoolean.allocationSize(value.`micEnabledOnJoin`) +
             FfiConverterBoolean.allocationSize(value.`cameraEnabledOnJoin`) +
-            FfiConverterString.allocationSize(value.`theme`)
+            FfiConverterString.allocationSize(value.`theme`) +
+            FfiConverterSequenceString.allocationSize(value.`meetInstances`)
     )
 
     override fun write(value: Settings, buf: ByteBuffer) {
@@ -2210,6 +2258,7 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterBoolean.write(value.`micEnabledOnJoin`, buf)
             FfiConverterBoolean.write(value.`cameraEnabledOnJoin`, buf)
             FfiConverterString.write(value.`theme`, buf)
+            FfiConverterSequenceString.write(value.`meetInstances`, buf)
     }
 }
 
