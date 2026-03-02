@@ -15,6 +15,12 @@ pub struct Settings {
     pub camera_enabled_on_join: bool,
     #[serde(default = "default_theme")]
     pub theme: String,
+    #[serde(default = "default_meet_instances")]
+    pub meet_instances: Vec<String>,
+}
+
+fn default_meet_instances() -> Vec<String> {
+    vec!["meet.numerique.gouv.fr".to_string()]
 }
 
 fn default_theme() -> String {
@@ -33,6 +39,7 @@ impl Default for Settings {
             mic_enabled_on_join: true,
             camera_enabled_on_join: false,
             theme: "light".to_string(),
+            meet_instances: default_meet_instances(),
         }
     }
 }
@@ -78,6 +85,15 @@ impl SettingsStore {
 
     pub fn set_theme(&self, theme: String) {
         self.settings.lock().unwrap().theme = theme;
+        self.save();
+    }
+
+    pub fn get_meet_instances(&self) -> Vec<String> {
+        self.settings.lock().unwrap().meet_instances.clone()
+    }
+
+    pub fn set_meet_instances(&self, instances: Vec<String>) {
+        self.settings.lock().unwrap().meet_instances = instances;
         self.save();
     }
 
@@ -210,5 +226,41 @@ mod tests {
         assert_eq!(s.display_name, Some("Eve".to_string()));
         assert!(s.mic_enabled_on_join);
         assert!(!s.camera_enabled_on_join);
+    }
+
+    #[test]
+    fn test_default_meet_instances() {
+        let s = Settings::default();
+        assert_eq!(s.meet_instances, vec!["meet.numerique.gouv.fr".to_string()]);
+    }
+
+    #[test]
+    fn test_set_meet_instances_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_meet_instances(vec![
+                "meet.numerique.gouv.fr".to_string(),
+                "meet.example.com".to_string(),
+            ]);
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(store.get().meet_instances, vec![
+            "meet.numerique.gouv.fr".to_string(),
+            "meet.example.com".to_string(),
+        ]);
+    }
+
+    #[test]
+    fn test_partial_json_defaults_meet_instances() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"display_name":"Eve"}"#,
+        ).unwrap();
+        let store = SettingsStore::new(path);
+        assert_eq!(store.get().meet_instances, vec!["meet.numerique.gouv.fr".to_string()]);
     }
 }
