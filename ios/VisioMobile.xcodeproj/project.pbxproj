@@ -26,6 +26,7 @@
 		A10001000000000000000014 /* CallKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000018 /* CallKitManager.swift */; };
 		A10001000000000000000015 /* PiPManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000019 /* PiPManager.swift */; };
 		A10001000000000000000016 /* ToolbarFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001A /* ToolbarFix.swift */; };
+		A10001000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001B /* Assets.xcassets */; };
 		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
 		A1000100000000000000000C /* libvisio_video.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000C /* libvisio_video.a */; };
 		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
@@ -58,6 +59,7 @@
 		A10002000000000000000018 /* CallKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitManager.swift; sourceTree = "<group>"; };
 		A10002000000000000000019 /* PiPManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiPManager.swift; sourceTree = "<group>"; };
 		A1000200000000000000001A /* ToolbarFix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarFix.swift; sourceTree = "<group>"; };
+		A1000200000000000000001B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10003000000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -99,6 +101,7 @@
 				A10005000000000000000004 /* Views */,
 				A10005000000000000000008 /* Services */,
 				A10005000000000000000006 /* Generated */,
+				A1000200000000000000001B /* Assets.xcassets */,
 				A1000200000000000000000E /* Info.plist */,
 			);
 			path = VisioMobile;
@@ -195,6 +198,17 @@
 		};
 /* End PBXShellScriptBuildPhase section */
 
+/* Begin PBXResourcesBuildPhase section */
+		A10004000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001000000000000000017 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXNativeTarget section */
 		A10006000000000000000001 /* VisioMobile */ = {
 			isa = PBXNativeTarget;
@@ -203,6 +217,7 @@
 				A10007000000000000000002 /* Copy i18n JSON */,
 				A10007000000000000000001 /* Sources */,
 				A10004000000000000000001 /* Frameworks */,
+				A10004000000000000000002 /* Resources */,
 			);
 			buildRules = (
 			);
