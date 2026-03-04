@@ -170,13 +170,18 @@ pub(crate) fn render_frame(
     let window = surface as *mut ndk_sys::ANativeWindow;
 
     unsafe {
-        // Configure the buffer geometry to match the incoming frame.
-        // WINDOW_FORMAT_RGBA_8888 = 1
+        // Use the surface's actual dimensions for letterboxing.
+        let surf_w = ndk_sys::ANativeWindow_getWidth(window) as usize;
+        let surf_h = ndk_sys::ANativeWindow_getHeight(window) as usize;
+        if surf_w == 0 || surf_h == 0 {
+            return;
+        }
+
         let result = ndk_sys::ANativeWindow_setBuffersGeometry(
             window,
-            width as i32,
-            height as i32,
-            1, // AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM / WINDOW_FORMAT_RGBA_8888
+            surf_w as i32,
+            surf_h as i32,
+            1, // WINDOW_FORMAT_RGBA_8888
         );
         if result != 0 {
             tracing::warn!("ANativeWindow_setBuffersGeometry failed: {result}");
@@ -188,7 +193,7 @@ pub(crate) fn render_frame(
         let lock_result = ndk_sys::ANativeWindow_lock(
             window,
             native_buf.as_mut_ptr(),
-            std::ptr::null_mut(), // no dirty rect — redraw everything
+            std::ptr::null_mut(),
         );
         if lock_result != 0 {
             tracing::warn!("ANativeWindow_lock failed: {lock_result}");
@@ -196,25 +201,34 @@ pub(crate) fn render_frame(
         }
 
         let native_buf = native_buf.assume_init();
-        let dst_stride = native_buf.stride as usize; // in pixels (RGBA = 4 bytes each)
+        let dst_stride = native_buf.stride as usize;
         let bits = native_buf.bits as *mut u8;
 
+        // Clear to opaque black.
+        let pixels = bits as *mut u32;
+        for i in 0..(surf_h * dst_stride) {
+            *pixels.add(i) = 0xFF000000u32;
+        }
+
+        // Fit video inside surface preserving aspect ratio (letterbox).
+        let scale = (surf_w as f64 / width as f64).min(surf_h as f64 / height as f64);
+        let render_w = (width as f64 * scale) as usize;
+        let render_h = (height as f64 * scale) as usize;
+        let off_x = (surf_w - render_w) / 2;
+        let off_y = (surf_h - render_h) / 2;
+
         // ---------------------------------------------------------------
-        // I420 → RGBA conversion (BT.601 full-range)
-        //
-        // Y  is full-resolution (width x height),  stride = y_stride
-        // U,V are half-resolution (width/2 x height/2), strides u/v
-        //
-        // R = Y + 1.402 * (V - 128)
-        // G = Y - 0.344136 * (U - 128) - 0.714136 * (V - 128)
-        // B = Y + 1.772 * (U - 128)
-        // A = 255
+        // I420 → RGBA conversion (BT.601 full-range) with letterbox
         // ---------------------------------------------------------------
-        for row in 0..height {
-            for col in 0..width {
-                let y_idx = row * y_stride + col;
-                let u_idx = (row / 2) * u_stride + (col / 2);
-                let v_idx = (row / 2) * v_stride + (col / 2);
+        for out_row in 0..render_h {
+            for out_col in 0..render_w {
+                // Nearest-neighbour scale to source coordinates.
+                let src_row = out_row * height / render_h;
+                let src_col = out_col * width / render_w;
+
+                let y_idx = src_row * y_stride + src_col;
+                let u_idx = (src_row / 2) * u_stride + (src_col / 2);
+                let v_idx = (src_row / 2) * v_stride + (src_col / 2);
 
                 let y = y_data[y_idx] as f32;
                 let u = u_data[u_idx] as f32 - 128.0;
@@ -224,16 +238,16 @@ pub(crate) fn render_frame(
                 let g = (y - 0.344136 * u - 0.714136 * v).clamp(0.0, 255.0) as u8;
                 let b = (y + 1.772 * u).clamp(0.0, 255.0) as u8;
 
-                // dst_stride is in pixels; each pixel is 4 bytes (RGBA).
-                let out_offset = (row * dst_stride + col) * 4;
+                let dx = out_col + off_x;
+                let dy = out_row + off_y;
+                let out_offset = (dy * dst_stride + dx) * 4;
                 *bits.add(out_offset) = r;
                 *bits.add(out_offset + 1) = g;
                 *bits.add(out_offset + 2) = b;
-                *bits.add(out_offset + 3) = 255; // fully opaque
+                *bits.add(out_offset + 3) = 255;
             }
         }
 
-        // Post the buffer to the display.
         ndk_sys::ANativeWindow_unlockAndPost(window);
     }
 }
