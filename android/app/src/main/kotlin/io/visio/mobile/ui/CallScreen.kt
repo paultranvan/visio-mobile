@@ -48,6 +48,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -107,7 +108,8 @@ fun CallScreen(
     var micEnabled by remember { mutableStateOf(false) }
     var cameraEnabled by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var showAudioSheet by remember { mutableStateOf(false) }
+    var showInCallSettings by remember { mutableStateOf(false) }
+    var inCallSettingsTab by remember { mutableIntStateOf(0) }
     var showParticipantList by remember { mutableStateOf(false) }
     var focusedParticipantSid by remember { mutableStateOf<String?>(null) }
 
@@ -246,17 +248,21 @@ fun CallScreen(
         )
     }
 
-    // Audio device bottom sheet
-    if (showAudioSheet) {
-        AudioDeviceSheet(
-            onDismiss = { showAudioSheet = false },
-            onSelect = { device ->
+    // In-call settings bottom sheet (replaces audio device sheet)
+    if (showInCallSettings) {
+        InCallSettingsSheet(
+            initialTab = inCallSettingsTab,
+            onDismiss = { showInCallSettings = false },
+            onSelectAudioOutput = { device ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
                     audioManager.setCommunicationDevice(device)
                 }
-                showAudioSheet = false
-            }
+            },
+            onSwitchCamera = { useFront ->
+                VisioManager.switchCamera(useFront)
+            },
+            isFrontCamera = VisioManager.isFrontCamera()
         )
     }
 
@@ -391,7 +397,10 @@ fun CallScreen(
                         }
                     }
                 },
-                onAudioPicker = { showAudioSheet = true },
+                onAudioPicker = {
+                    inCallSettingsTab = 0
+                    showInCallSettings = true
+                },
                 onToggleCamera = {
                     val newState = !cameraEnabled
                     if (newState) {
@@ -433,6 +442,10 @@ fun CallScreen(
                     }
                 },
                 onParticipants = { showParticipantList = true },
+                onSettings = {
+                    inCallSettingsTab = 0
+                    showInCallSettings = true
+                },
                 onChat = onChatOpen,
                 onHangUp = {
                     VisioManager.stopCameraCapture()
@@ -461,6 +474,7 @@ private fun ControlBar(
     onToggleCamera: () -> Unit,
     onToggleHandRaise: () -> Unit,
     onParticipants: () -> Unit,
+    onSettings: () -> Unit,
     onChat: () -> Unit,
     onHangUp: () -> Unit
 ) {
@@ -606,6 +620,21 @@ private fun ControlBar(
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+
+        // Settings gear
+        IconButton(
+            onClick = onSettings,
+            modifier = Modifier
+                .size(44.dp)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_settings_3_line),
+                contentDescription = Strings.t("settings.incall", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(20.dp)
+            )
         }
 
         // Hangup
@@ -833,73 +862,3 @@ private fun ConnectionStateBanner(state: ConnectionState, errorMessage: String?)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AudioDeviceSheet(
-    onDismiss: () -> Unit,
-    onSelect: (AudioDeviceInfo) -> Unit
-) {
-    val context = LocalContext.current
-    val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    val devices = remember {
-        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter {
-            it.type in listOf(
-                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-                AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
-                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-                AudioDeviceInfo.TYPE_WIRED_HEADSET,
-                AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                AudioDeviceInfo.TYPE_USB_HEADSET
-            )
-        }
-    }
-
-    val sheetState = rememberModalBottomSheetState()
-
-    val lang = VisioManager.currentLang
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = VisioColors.PrimaryDark75
-    ) {
-        Text(
-            text = Strings.t("audio.source", lang),
-            style = MaterialTheme.typography.titleMedium,
-            color = VisioColors.White,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        devices.forEach { device ->
-            val label = device.productName?.toString()?.ifBlank { null }
-                ?: audioDeviceTypeName(device.type, lang)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelect(device) }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = label,
-                    color = VisioColors.White,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-    }
-}
-
-private fun audioDeviceTypeName(type: Int, lang: String): String = when (type) {
-    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
-    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
-    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
-    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> Strings.t("audio.bluetooth", lang)
-    AudioDeviceInfo.TYPE_WIRED_HEADSET -> Strings.t("audio.wiredHeadset", lang)
-    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Strings.t("audio.wiredHeadphones", lang)
-    AudioDeviceInfo.TYPE_USB_HEADSET -> Strings.t("audio.usbHeadset", lang)
-    else -> Strings.t("audio.device", lang)
-}
