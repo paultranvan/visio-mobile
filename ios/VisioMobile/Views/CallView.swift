@@ -112,24 +112,38 @@ struct CallView: View {
 
     private var gridLayout: some View {
         let count = manager.participants.count
-        let columnCount = count <= 2 ? 1 : 2
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: columnCount)
 
-        return ScrollView {
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(manager.participants, id: \.sid) { participant in
-                    ParticipantTile(
-                        participant: participant,
-                        isActiveSpeaker: manager.activeSpeakers.contains(participant.sid),
-                        handRaisePosition: manager.handRaisedMap[participant.sid] ?? 0,
-                        isDark: isDark
-                    )
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            focusedParticipant = participant.sid
+        return GeometryReader { geo in
+            let isLandscape = geo.size.width > geo.size.height
+            let columnCount: Int = {
+                if count == 1 { return 1 }
+                if isLandscape { return min(count, 3) }
+                return count <= 2 ? 1 : 2
+            }()
+            let rowCount = (count + columnCount - 1) / columnCount
+            let tileHeight = (geo.size.height - 16 - CGFloat(rowCount - 1) * 8) / CGFloat(rowCount)
+
+            VStack(spacing: 8) {
+                ForEach(Array(stride(from: 0, to: count, by: columnCount)), id: \.self) { rowStart in
+                    HStack(spacing: 8) {
+                        ForEach(rowStart..<min(rowStart + columnCount, count), id: \.self) { idx in
+                            let participant = manager.participants[idx]
+                            ParticipantTile(
+                                participant: participant,
+                                isActiveSpeaker: manager.activeSpeakers.contains(participant.sid),
+                                handRaisePosition: manager.handRaisedMap[participant.sid] ?? 0,
+                                isDark: isDark
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    focusedParticipant = participant.sid
+                                }
+                            }
                         }
                     }
+                    .frame(height: tileHeight)
                 }
             }
             .padding(8)
@@ -139,47 +153,21 @@ struct CallView: View {
     // MARK: - Focus Layout
 
     private func focusLayout(focused: ParticipantInfo) -> some View {
-        VStack(spacing: 8) {
-            // Large focused participant
-            ParticipantTile(
-                participant: focused,
-                large: true,
-                isActiveSpeaker: manager.activeSpeakers.contains(focused.sid),
-                handRaisePosition: manager.handRaisedMap[focused.sid] ?? 0,
-                isDark: isDark
-            )
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    focusedParticipant = nil
-                }
-            }
-
-            // Horizontal strip of other participants
-            let others = manager.participants.filter { $0.sid != focused.sid }
-            if !others.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(others, id: \.sid) { p in
-                            ParticipantTile(
-                                participant: p,
-                                isActiveSpeaker: manager.activeSpeakers.contains(p.sid),
-                                handRaisePosition: manager.handRaisedMap[p.sid] ?? 0,
-                                isDark: isDark
-                            )
-                            .frame(width: 160, height: 120)
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    focusedParticipant = p.sid
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                }
-                .frame(height: 120)
+        ParticipantTile(
+            participant: focused,
+            large: true,
+            isActiveSpeaker: manager.activeSpeakers.contains(focused.sid),
+            handRaisePosition: manager.handRaisedMap[focused.sid] ?? 0,
+            isDark: isDark
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(8)
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                focusedParticipant = nil
             }
         }
-        .padding(8)
     }
 
     // MARK: - Connection Banner
