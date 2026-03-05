@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -89,7 +90,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .imePadding(),
     ) {
         TopAppBar(
             title = {
@@ -275,13 +277,20 @@ fun SettingsScreen(onBack: () -> Unit) {
         // Save button
         Button(
             onClick = {
+                // Auto-add pending instance text before saving
+                val trimmed = newInstance.trim()
+                val instancesToSave = if (trimmed.isNotEmpty() && trimmed !in meetInstances) {
+                    meetInstances + trimmed
+                } else {
+                    meetInstances
+                }
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
                         VisioManager.client.setDisplayName(displayName.ifBlank { null })
                         VisioManager.client.setLanguage(language)
                         VisioManager.client.setMicEnabledOnJoin(micOnJoin)
                         VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
-                        VisioManager.client.setMeetInstances(meetInstances)
+                        VisioManager.client.setMeetInstances(instancesToSave)
                     } catch (_: Exception) {
                     }
                 }

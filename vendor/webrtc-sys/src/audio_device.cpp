@@ -17,7 +17,7 @@
 #include "livekit/audio_device.h"
 
 const int kSampleRate = 48000;
-const int kChannels = 2;
+const int kChannels = 1;
 const int kBytesPerSample = kChannels * sizeof(int16_t);
 const int kSamplesPer10Ms = kSampleRate / 100;
 
@@ -289,6 +289,9 @@ int32_t AudioDevice::StereoRecording(bool* enabled) const {
 }
 
 int32_t AudioDevice::PlayoutDelay(uint16_t* delayMS) const {
+  if (delayMS) {
+    *delayMS = 10;
+  }
   return 0;
 }
 
