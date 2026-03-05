@@ -1,17 +1,12 @@
 package io.visio.mobile.ui
 
-import android.media.AudioDeviceInfo
 import android.media.AudioManager
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 
 class InCallSettingsSheetTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 

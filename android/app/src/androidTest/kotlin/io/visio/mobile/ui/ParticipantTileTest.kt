@@ -10,7 +10,6 @@ import uniffi.visio.ConnectionQuality
 import uniffi.visio.ParticipantInfo
 
 class ParticipantTileTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 

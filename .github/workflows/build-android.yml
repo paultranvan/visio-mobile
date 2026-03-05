@@ -25,9 +25,9 @@ jobs:
           key: test
       - name: Install LiveKit server
         run: |
-          curl -sSL https://get.livekit.io/cli | bash
+          curl -sSL https://get.livekit.io | bash
           livekit-server --dev &
-          sleep 2
+          sleep 3
       - name: Run unit tests
         run: cargo test -p visio-core --lib
       - name: Run integration tests
