@@ -4,7 +4,7 @@
 
 # Visio Mobile
 
-Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv.fr), built on the [LiveKit Rust SDK](https://github.com/livekit/rust-sdks).
+Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv.fr) instance, built on the [LiveKit Rust SDK](https://github.com/livekit/rust-sdks).
 
 > **Status: Beta — Active Development**
 > Core functionality works end-to-end on all three platforms. The app is currently in closed beta testing on Android (Firebase App Distribution) and iOS (TestFlight).
