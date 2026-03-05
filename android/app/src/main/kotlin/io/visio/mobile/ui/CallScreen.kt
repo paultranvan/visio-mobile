@@ -498,9 +498,9 @@ private fun ControlBar(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 8.dp)
                 .background(VisioColors.PrimaryDark75, RoundedCornerShape(16.dp))
-                .padding(12.dp),
+                .padding(horizontal = 6.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -516,7 +516,7 @@ private fun ControlBar(
         ) {
             IconButton(
                 onClick = onToggleMic,
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(38.dp),
             ) {
                 Icon(
                     painter =
@@ -530,13 +530,13 @@ private fun ControlBar(
             }
             IconButton(
                 onClick = onAudioPicker,
-                modifier = Modifier.size(28.dp, 44.dp),
+                modifier = Modifier.size(22.dp, 38.dp),
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ri_arrow_up_s_line),
                     contentDescription = Strings.t("control.audioDevices", lang),
                     tint = VisioColors.White,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(14.dp),
                 )
             }
         }
@@ -546,7 +546,7 @@ private fun ControlBar(
             onClick = onToggleCamera,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(
                         if (cameraEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
                         RoundedCornerShape(8.dp),
@@ -568,7 +568,7 @@ private fun ControlBar(
             onClick = onToggleHandRaise,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(
                         if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
                         RoundedCornerShape(8.dp),
@@ -587,7 +587,7 @@ private fun ControlBar(
             onClick = onParticipants,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
         ) {
             BadgedBox(
@@ -619,7 +619,7 @@ private fun ControlBar(
             onClick = onChat,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
         ) {
             BadgedBox(
@@ -651,7 +651,7 @@ private fun ControlBar(
             onClick = onSettings,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
         ) {
             Icon(
@@ -667,7 +667,7 @@ private fun ControlBar(
             onClick = onHangUp,
             modifier =
                 Modifier
-                    .size(44.dp)
+                    .size(38.dp)
                     .background(VisioColors.Error500, RoundedCornerShape(8.dp)),
         ) {
             Icon(
