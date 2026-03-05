@@ -5,6 +5,12 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+ktlint {
+    filter {
+        exclude("**/uniffi/**")
+    }
+}
+
 android {
     namespace = "io.visio.mobile"
     compileSdk = 35
