@@ -2,8 +2,21 @@
 
 Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv.fr), built on the [LiveKit Rust SDK](https://github.com/livekit/rust-sdks).
 
-> **Status: active development (pre-release)**
-> Core functionality works end-to-end on all three platforms. Not yet packaged for distribution.
+> **Status: Beta — Active Development**
+> Core functionality works end-to-end on all three platforms. The app is currently in closed beta testing on Android (Firebase App Distribution) and iOS (TestFlight).
+>
+> **Want to join the beta?** Contact [mmaudet@linagora.com](mailto:mmaudet@linagora.com) to be added as a tester on iOS and/or Android.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/android_call.png" alt="Android — Video call with 2 participants" width="300" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="docs/screenshots/ios_home.png" alt="iOS — Home screen" width="300" />
+</p>
+<p align="center">
+  <em>Left: Android — Active video call &nbsp;|&nbsp; Right: iOS — Home screen with new La Suite Meet icon</em>
+</p>
 
 ## Platforms
 
@@ -248,11 +261,19 @@ docs/plans/         Design docs and implementation plans
 - Room URL validation with real-time debounced feedback
 - Settings view (display name, language, mic/camera on join)
 
+## Recent additions
+
+- **Wake lock**: Screen stays on during active calls; audio continues when screen is manually turned off (Android partial wake lock, iOS idle timer disabled)
+- **Independent audio routing**: Select input and output audio devices separately (e.g., Bluetooth mic + phone speaker)
+- **La Suite Meet icon**: New branded app icon across all platforms
+- **In-call settings panel**: Tabbed bottom sheet for microphone/camera/notification settings during a call
+- **Network resilience**: Automatic reconnection with UI banner (via LiveKit SDK)
+
 ## What's next
 
-- Physical device testing (iOS camera, Android edge cases)
 - Push notifications
 - ProConnect authentication
+- Screen sharing
 - App store packaging (APK/IPA/DMG)
 
 ## Configuration
