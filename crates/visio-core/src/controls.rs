@@ -90,7 +90,7 @@ impl MeetingControls {
         *self.audio_source.lock().await = Some(source.clone());
 
         tracing::info!("microphone track published");
-        self.emitter.emit(VisioEvent::TrackMuted {
+        self.emitter.emit(VisioEvent::TrackUnmuted {
             participant_sid: String::new(),
             source: crate::events::TrackSource::Microphone,
         });

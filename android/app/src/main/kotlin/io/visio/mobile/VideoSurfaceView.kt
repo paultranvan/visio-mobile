@@ -23,8 +23,9 @@ class VideoSurfaceView(
         height: Int,
     ) {
         Log.d(TAG, "surfaceCreated track=$trackSid ${width}x$height, attaching surface")
-        surface = Surface(texture)
-        NativeVideo.attachSurface(trackSid, surface!!)
+        val s = Surface(texture)
+        surface = s
+        NativeVideo.attachSurface(trackSid, s)
     }
 
     override fun onSurfaceTextureSizeChanged(
