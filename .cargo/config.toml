@@ -3,3 +3,17 @@ rustflags = ["-C", "link-arg=-ObjC"]
 
 [target.'cfg(target_os = "ios")']
 rustflags = ["-C", "link-arg=-ObjC"]
+
+# Android 16 (API 36) requires 16KB page alignment for native libraries.
+# Devices with 16KB pages silently crash on load if .so uses 4KB alignment.
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
+
+[target.armv7-linux-androideabi]
+rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
+
+[target.i686-linux-android]
+rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
