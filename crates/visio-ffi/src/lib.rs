@@ -1021,7 +1021,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePullAudioPlaybac
     let playout = playout.clone();
     drop(guard);
 
-    let Ok(mut jni_env) = (unsafe { jni::JNIEnv::from_raw(env) }) else { return };
+    let Ok(mut jni_env) = (unsafe { jni::JNIEnv::from_raw(env) }) else { return 0 };
 
     let len = jni_env.get_array_length(&unsafe { jni::objects::JShortArray::from_raw(buffer) })
         .unwrap_or(0) as usize;
