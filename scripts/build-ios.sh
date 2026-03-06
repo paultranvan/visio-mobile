@@ -14,6 +14,9 @@ else
     echo "==> Building for iOS Device..."
 fi
 
+# Regenerate Swift UniFFI bindings (patches modulemap for visio_native.h)
+"$REPO_ROOT/scripts/generate-bindings.sh" swift
+
 cargo build --target "$RUST_TARGET" -p visio-ffi -p visio-video --release
 
 echo "==> Libraries at:"

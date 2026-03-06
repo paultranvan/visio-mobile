@@ -28,7 +28,7 @@ struct VisioMobileApp: App {
                     manager.pendingDeepLink = "https://\(host)/\(slug)"
                 }
             }
-            .onChange(of: scenePhase) { _, phase in
+            .onChange(of: scenePhase) { phase in
                 switch phase {
                 case .background:
                     manager.onAppBackgrounded()

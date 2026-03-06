@@ -351,6 +351,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_participants(void*_Nonnull ptr
 void uniffi_visio_ffi_fn_method_visioclient_raise_hand(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_RECONNECT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_RECONNECT
+void uniffi_visio_ffi_fn_method_visioclient_reconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_send_chat_message(void*_Nonnull ptr, RustBuffer text, RustCallStatus *_Nonnull out_status
@@ -814,6 +819,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_participants(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RAISE_HAND
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RAISE_HAND
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_raise_hand(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RECONNECT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RECONNECT
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_reconnect(void
     
 );
 #endif

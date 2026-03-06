@@ -533,6 +533,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func raiseHand() throws 
     
+    func reconnect() throws 
+    
     func sendChatMessage(text: String) throws  -> ChatMessage
     
     func setCameraEnabled(enabled: Bool) throws 
@@ -720,6 +722,12 @@ open func participants() -> [ParticipantInfo]  {
     
 open func raiseHand()throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_raise_hand(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
+open func reconnect()throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_reconnect(self.uniffiClonePointer(),$0
     )
 }
 }
@@ -1881,6 +1889,7 @@ public enum VisioEvent {
     )
     case unreadCountChanged(count: UInt32
     )
+    case connectionLost
 }
 
 
@@ -1933,6 +1942,8 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         
         case 12: return .unreadCountChanged(count: try FfiConverterUInt32.read(from: &buf)
         )
+        
+        case 13: return .connectionLost
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2006,6 +2017,10 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
             writeInt(&buf, Int32(12))
             FfiConverterUInt32.write(count, into: &buf)
             
+        
+        case .connectionLost:
+            writeInt(&buf, Int32(13))
+        
         }
     }
 }
@@ -2311,6 +2326,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_raise_hand() != 37998) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_reconnect() != 64546) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_send_chat_message() != 33280) {
