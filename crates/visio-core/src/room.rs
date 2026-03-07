@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tokio::sync::Mutex;
 
+use crate::adaptive;
 use crate::audio_playout::AudioPlayoutBuffer;
 use crate::auth::AuthService;
 use crate::chat::MessageStore;
@@ -44,6 +45,8 @@ pub struct RoomManager {
     /// Chat unread tracking (shared with event loop).
     chat_open: Arc<AtomicBool>,
     unread_count: Arc<AtomicU32>,
+    /// Adaptive context engine (sync Mutex — methods are non-async).
+    adaptive: Arc<std::sync::Mutex<adaptive::AdaptiveEngine>>,
 }
 
 impl Default for RoomManager {
@@ -71,6 +74,7 @@ impl RoomManager {
             lobby_cancel: Arc::new(tokio::sync::Notify::new()),
             chat_open: Arc::new(AtomicBool::new(false)),
             unread_count: Arc::new(AtomicU32::new(0)),
+            adaptive: Arc::new(std::sync::Mutex::new(adaptive::AdaptiveEngine::new())),
         }
     }
 
@@ -118,6 +122,33 @@ impl RoomManager {
     /// Get the current unread message count.
     pub fn unread_count(&self) -> u32 {
         self.unread_count.load(Ordering::Relaxed)
+    }
+
+    /// Report a context signal from the platform layer.
+    pub fn report_context_signal(&self, signal: adaptive::ContextSignal) -> Option<adaptive::AdaptiveMode> {
+        let mut engine = self.adaptive.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = engine.update_signal(signal);
+        if let Some(mode) = changed {
+            self.emitter.emit(VisioEvent::AdaptiveModeChanged { mode });
+        }
+        changed
+    }
+
+    /// Get the current adaptive mode.
+    pub fn adaptive_mode(&self) -> adaptive::AdaptiveMode {
+        let engine = self.adaptive.lock().unwrap_or_else(|p| p.into_inner());
+        engine.current_mode()
+    }
+
+    /// Set a manual mode override. Pass None to return to auto-detection.
+    pub fn set_adaptive_mode_override(&self, mode: Option<adaptive::AdaptiveMode>) {
+        let mut engine = self.adaptive.lock().unwrap_or_else(|p| p.into_inner());
+        let old = engine.current_mode();
+        engine.set_override(mode);
+        let new = engine.current_mode();
+        if new != old {
+            self.emitter.emit(VisioEvent::AdaptiveModeChanged { mode: new });
+        }
     }
 
     /// Get current connection state.
