@@ -36,6 +36,10 @@ pub struct RoomManager {
     /// Stored connection info for application-level reconnection.
     last_meet_url: Arc<Mutex<Option<String>>>,
     last_username: Arc<Mutex<Option<String>>>,
+    /// Lobby (waiting room) state.
+    lobby_cookie: Arc<Mutex<Option<String>>>,
+    session_cookie: Arc<Mutex<Option<String>>>,
+    lobby_cancel: Arc<tokio::sync::Notify>,
 }
 
 impl Default for RoomManager {
@@ -58,6 +62,9 @@ impl RoomManager {
             camera_enabled: Arc::new(Mutex::new(false)),
             last_meet_url: Arc::new(Mutex::new(None)),
             last_username: Arc::new(Mutex::new(None)),
+            lobby_cookie: Arc::new(Mutex::new(None)),
+            session_cookie: Arc::new(Mutex::new(None)),
+            lobby_cancel: Arc::new(tokio::sync::Notify::new()),
         }
     }
 
@@ -177,13 +184,22 @@ impl RoomManager {
         // Store connection info for potential reconnection
         *self.last_meet_url.lock().await = Some(meet_url.to_string());
         *self.last_username.lock().await = username.map(|s| s.to_string());
+        *self.session_cookie.lock().await = session_cookie.map(|s| s.to_string());
 
         self.set_connection_state(ConnectionState::Connecting).await;
 
-        let token_info = AuthService::request_token(meet_url, username, session_cookie).await?;
-
-        self.connect_with_token(&token_info.livekit_url, &token_info.token)
-            .await
+        match AuthService::request_token(meet_url, username, session_cookie).await {
+            Ok(token_info) => {
+                self.connect_with_token(&token_info.livekit_url, &token_info.token)
+                    .await
+            }
+            Err(VisioError::Auth(ref msg)) if msg.contains("waiting for host approval") => {
+                tracing::info!("room requires host approval, entering lobby");
+                let name = username.unwrap_or("Anonymous");
+                self.enter_lobby(meet_url, name).await
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// Connect directly with a LiveKit URL and token (useful for testing).
@@ -266,6 +282,10 @@ impl RoomManager {
 
     /// Disconnect from the current room.
     pub async fn disconnect(&self) {
+        // Cancel any in-progress lobby polling
+        self.lobby_cancel.notify_one();
+        *self.lobby_cookie.lock().await = None;
+
         // Clear reconnection info BEFORE closing — so the event loop
         // knows this disconnect is intentional.
         *self.last_meet_url.lock().await = None;
@@ -368,6 +388,230 @@ impl RoomManager {
         Err(VisioError::Connection(
             "reconnection failed after all attempts".into(),
         ))
+    }
+
+    /// Enter the waiting room lobby and start polling for entry approval.
+    async fn enter_lobby(&self, meet_url: &str, username: &str) -> Result<(), VisioError> {
+        use crate::lobby::{LobbyPollResult, LobbyService};
+
+        let (participant_id, lobby_cookie, poll_result) =
+            LobbyService::request_entry(meet_url, username).await?;
+
+        tracing::info!(
+            "lobby entry requested: participant_id={participant_id}"
+        );
+
+        *self.lobby_cookie.lock().await = Some(lobby_cookie.clone());
+
+        match poll_result {
+            LobbyPollResult::Accepted {
+                livekit_url,
+                token,
+            } => {
+                tracing::info!("immediately accepted into room");
+                return self.connect_with_token(&livekit_url, &token).await;
+            }
+            LobbyPollResult::Denied => {
+                self.emitter.emit(VisioEvent::LobbyDenied);
+                self.set_connection_state(ConnectionState::Disconnected)
+                    .await;
+                return Err(VisioError::Auth("entry denied by host".to_string()));
+            }
+            LobbyPollResult::Waiting => {
+                // Fall through to start polling
+            }
+        }
+
+        self.set_connection_state(ConnectionState::WaitingForHost)
+            .await;
+
+        // Clone Arcs for the spawned polling task
+        let meet_url = meet_url.to_string();
+        let username = username.to_string();
+        let lobby_cookie_arc = self.lobby_cookie.clone();
+        let lobby_cancel = self.lobby_cancel.clone();
+        let room = self.room.clone();
+        let participants = self.participants.clone();
+        let subscribed_tracks = self.subscribed_tracks.clone();
+        let messages = self.messages.clone();
+        let playout_buffer = self.playout_buffer.clone();
+        let hand_raise = self.hand_raise.clone();
+        let _camera_enabled = self.camera_enabled.clone();
+        let connection_state = self.connection_state.clone();
+        let emitter = self.emitter.clone();
+        let last_meet_url = self.last_meet_url.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = lobby_cancel.notified() => {
+                        tracing::info!("lobby polling cancelled");
+                        break;
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                        let cookie = lobby_cookie_arc.lock().await.clone().unwrap_or_default();
+                        if cookie.is_empty() {
+                            tracing::warn!("lobby cookie missing, stopping poll");
+                            break;
+                        }
+
+                        match LobbyService::poll_entry(&meet_url, &username, &cookie).await {
+                            Ok(LobbyPollResult::Accepted { livekit_url, token }) => {
+                                tracing::info!("lobby entry accepted, connecting to room");
+                                *connection_state.lock().await = ConnectionState::Connecting;
+                                emitter.emit(VisioEvent::ConnectionStateChanged(
+                                    ConnectionState::Connecting,
+                                ));
+
+                                let mut options = RoomOptions::default();
+                                options.auto_subscribe = true;
+                                options.adaptive_stream = true;
+                                options.dynacast = true;
+
+                                match Room::connect(&livekit_url, &token, options).await {
+                                    Ok((lk_room, events)) => {
+                                        let lk_room = Arc::new(lk_room);
+
+                                        // Store local participant SID
+                                        {
+                                            let local = lk_room.local_participant();
+                                            let mut pm = participants.lock().await;
+                                            pm.set_local_sid(local.sid().to_string());
+                                        }
+
+                                        // Seed existing remote participants
+                                        {
+                                            let mut pm = participants.lock().await;
+                                            for (_, participant) in lk_room.remote_participants() {
+                                                let info = RoomManager::remote_participant_to_info(&participant);
+                                                pm.add_participant(info.clone());
+                                                emitter.emit(VisioEvent::ParticipantJoined(info));
+                                            }
+                                        }
+
+                                        // Store room reference
+                                        *room.lock().await = Some(lk_room.clone());
+
+                                        // Initialize HandRaiseManager
+                                        {
+                                            let hm = HandRaiseManager::new(
+                                                lk_room.clone(),
+                                                emitter.clone(),
+                                            );
+                                            *hand_raise.lock().await = Some(hm);
+                                        }
+
+                                        // Update state to connected
+                                        *connection_state.lock().await = ConnectionState::Connected;
+                                        emitter.emit(VisioEvent::ConnectionStateChanged(
+                                            ConnectionState::Connected,
+                                        ));
+
+                                        // Spawn event loop
+                                        let ev_emitter = emitter.clone();
+                                        let ev_participants = participants.clone();
+                                        let ev_connection_state = connection_state.clone();
+                                        let ev_room_ref = room.clone();
+                                        let ev_subscribed_tracks = subscribed_tracks.clone();
+                                        let ev_messages = messages.clone();
+                                        let ev_playout_buffer = playout_buffer.clone();
+                                        let ev_hand_raise = hand_raise.clone();
+                                        let ev_last_meet_url = last_meet_url.clone();
+
+                                        tokio::spawn(async move {
+                                            RoomManager::event_loop(
+                                                events,
+                                                ev_emitter,
+                                                ev_participants,
+                                                ev_connection_state,
+                                                ev_room_ref,
+                                                ev_subscribed_tracks,
+                                                ev_messages,
+                                                ev_playout_buffer,
+                                                ev_hand_raise,
+                                                ev_last_meet_url,
+                                            )
+                                            .await;
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("failed to connect after lobby acceptance: {e}");
+                                        *connection_state.lock().await = ConnectionState::Disconnected;
+                                        emitter.emit(VisioEvent::ConnectionStateChanged(
+                                            ConnectionState::Disconnected,
+                                        ));
+                                    }
+                                }
+                                break;
+                            }
+                            Ok(LobbyPollResult::Denied) => {
+                                tracing::info!("lobby entry denied by host");
+                                emitter.emit(VisioEvent::LobbyDenied);
+                                *connection_state.lock().await = ConnectionState::Disconnected;
+                                emitter.emit(VisioEvent::ConnectionStateChanged(
+                                    ConnectionState::Disconnected,
+                                ));
+                                break;
+                            }
+                            Ok(LobbyPollResult::Waiting) => {
+                                tracing::debug!("still waiting in lobby...");
+                            }
+                            Err(e) => {
+                                tracing::warn!("lobby poll error (will retry): {e}");
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    /// List participants currently waiting in the lobby (host only).
+    pub async fn list_waiting_participants(
+        &self,
+    ) -> Result<Vec<crate::lobby::WaitingParticipant>, VisioError> {
+        let meet_url = self
+            .last_meet_url
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| VisioError::Room("not connected".to_string()))?;
+        let cookie = self
+            .session_cookie
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| VisioError::Room("not authenticated".to_string()))?;
+        crate::lobby::LobbyService::list_waiting(&meet_url, &cookie).await
+    }
+
+    /// Allow or deny a waiting participant (host only).
+    pub async fn handle_lobby_entry(
+        &self,
+        participant_id: &str,
+        allow: bool,
+    ) -> Result<(), VisioError> {
+        let meet_url = self
+            .last_meet_url
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| VisioError::Room("not connected".to_string()))?;
+        let cookie = self
+            .session_cookie
+            .lock()
+            .await
+            .clone()
+            .ok_or_else(|| VisioError::Room("not authenticated".to_string()))?;
+        crate::lobby::LobbyService::handle_entry(&meet_url, &cookie, participant_id, allow).await
+    }
+
+    /// Cancel lobby polling and clear lobby state.
+    pub async fn cancel_lobby(&self) {
+        self.lobby_cancel.notify_one();
+        *self.lobby_cookie.lock().await = None;
     }
 
     async fn set_connection_state(&self, state: ConnectionState) {
@@ -798,6 +1042,27 @@ impl RoomManager {
                         "DataReceived: from={psid} topic={topic_str} kind={kind:?} len={}",
                         payload.len()
                     );
+
+                    // Handle lobby/waiting room data channel notifications
+                    if topic_str.contains("lobby") || topic_str.contains("waiting") {
+                        if let Ok(text) = std::str::from_utf8(&payload) {
+                            tracing::info!("lobby notification received: {}", text);
+                            if let Ok(data) = serde_json::from_str::<serde_json::Value>(text) {
+                                let id = data
+                                    .get("id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let username = data
+                                    .get("username")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("Unknown")
+                                    .to_string();
+                                emitter.emit(VisioEvent::LobbyParticipantJoined { id, username });
+                            }
+                        }
+                        continue;
+                    }
 
                     // Legacy fallback: chat messages via DataReceived with topic "lk-chat-topic"
                     // New clients send both Stream + legacy; "ignoreLegacy" flag means
