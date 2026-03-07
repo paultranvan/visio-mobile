@@ -220,6 +220,22 @@ impl VisioEventListener for DesktopEventListener {
                     );
                 }
             }
+            VisioEvent::ReactionReceived {
+                participant_sid,
+                participant_name,
+                emoji,
+            } => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "reaction-received",
+                        serde_json::json!({
+                            "participantSid": participant_sid,
+                            "participantName": participant_name,
+                            "emoji": emoji,
+                        }),
+                    );
+                }
+            }
             VisioEvent::ConnectionLost => {
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit("connection-lost", ());
@@ -615,6 +631,12 @@ async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Resul
 }
 
 #[tauri::command]
+async fn send_reaction(state: tauri::State<'_, VisioState>, emoji: String) -> Result<(), String> {
+    let room = state.room.lock().await;
+    room.send_reaction(&emoji).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn set_background_mode(
     state: tauri::State<'_, VisioState>,
     app: AppHandle,
@@ -792,6 +814,7 @@ pub fn run() {
             lower_hand,
             is_hand_raised,
             set_chat_open,
+            send_reaction,
             set_background_mode,
             get_background_mode,
             load_blur_model,

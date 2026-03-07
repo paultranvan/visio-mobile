@@ -311,6 +311,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_connection_state(void*_Nonnull
 void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_background_mode(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -336,6 +341,16 @@ int8_t uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(void*_Nonnull ptr, 
 int8_t uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOAD_BACKGROUND_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOAD_BACKGROUND_IMAGE
+void uniffi_visio_ffi_fn_method_visioclient_load_background_image(void*_Nonnull ptr, uint8_t id, RustBuffer jpeg_path, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOAD_BLUR_MODEL
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOAD_BLUR_MODEL
+void uniffi_visio_ffi_fn_method_visioclient_load_blur_model(void*_Nonnull ptr, RustBuffer model_path, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOWER_HAND
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LOWER_HAND
 void uniffi_visio_ffi_fn_method_visioclient_lower_hand(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -359,6 +374,16 @@ void uniffi_visio_ffi_fn_method_visioclient_reconnect(void*_Nonnull ptr, RustCal
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_send_chat_message(void*_Nonnull ptr, RustBuffer text, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_REACTION
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SEND_REACTION
+void uniffi_visio_ffi_fn_method_visioclient_send_reaction(void*_Nonnull ptr, RustBuffer emoji, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_BACKGROUND_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_BACKGROUND_MODE
+void uniffi_visio_ffi_fn_method_visioclient_set_background_mode(void*_Nonnull ptr, RustBuffer mode, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_CAMERA_ENABLED
@@ -774,6 +799,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_disconnect(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_background_mode(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances(void
@@ -804,6 +835,18 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOAD_BACKGROUND_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOAD_BACKGROUND_IMAGE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_load_background_image(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOAD_BLUR_MODEL
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOAD_BLUR_MODEL
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_load_blur_model(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOWER_HAND
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_LOWER_HAND
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_lower_hand(void
@@ -831,6 +874,18 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_reconnect(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SEND_CHAT_MESSAGE
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_send_chat_message(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SEND_REACTION
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SEND_REACTION
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_send_reaction(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_BACKGROUND_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_BACKGROUND_MODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_background_mode(void
     
 );
 #endif

@@ -67,6 +67,11 @@ object VisioManager : VisioEventListener {
     private val _isHandRaised = MutableStateFlow(false)
     val isHandRaised: StateFlow<Boolean> = _isHandRaised.asStateFlow()
 
+    // Emoji reactions
+    private var reactionIdCounter = 0L
+    private val _reactions = MutableStateFlow<List<ReactionData>>(emptyList())
+    val reactions: StateFlow<List<ReactionData>> = _reactions.asStateFlow()
+
     // Deep link: pre-fill room URL on HomeScreen
     var pendingDeepLink: String? by mutableStateOf(null)
 
@@ -221,6 +226,10 @@ object VisioManager : VisioEventListener {
     /**
      * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
      */
+    fun sendReaction(emoji: String) {
+        scope.launch { client.sendReaction(emoji) }
+    }
+
     fun disconnect() {
         stopCameraCapture()
         stopAudioCapture()
@@ -357,6 +366,16 @@ object VisioManager : VisioEventListener {
                 Log.d("VISIO", "TrackUnsubscribed: trackSid=${event.trackSid}")
                 refreshParticipants()
             }
+            is VisioEvent.ReactionReceived -> {
+                val reaction = ReactionData(
+                    id = reactionIdCounter++,
+                    participantSid = event.participantSid,
+                    participantName = event.participantName,
+                    emoji = event.emoji,
+                    timestamp = System.currentTimeMillis(),
+                )
+                _reactions.value = _reactions.value + reaction
+            }
             is VisioEvent.ConnectionLost -> {
                 scope.launch {
                     try {
@@ -369,3 +388,11 @@ object VisioManager : VisioEventListener {
         }
     }
 }
+
+data class ReactionData(
+    val id: Long,
+    val participantSid: String,
+    val participantName: String,
+    val emoji: String,
+    val timestamp: Long,
+)

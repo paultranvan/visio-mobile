@@ -28,6 +28,12 @@ pub enum VisioEvent {
         position: u32,
     },
     UnreadCountChanged(u32),
+    /// A participant sent an animated reaction (emoji).
+    ReactionReceived {
+        participant_sid: String,
+        participant_name: String,
+        emoji: String,
+    },
     /// Connection lost unexpectedly — native UI should call reconnect().
     ConnectionLost,
 }
