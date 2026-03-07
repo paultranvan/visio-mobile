@@ -86,7 +86,7 @@ struct CallView: View {
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $showInCallSettings) {
-            InCallSettingsSheet(selectedTab: inCallSettingsTab)
+            InCallSettingsSheet(roomURL: roomURL, selectedTab: inCallSettingsTab)
                 .environmentObject(manager)
                 .presentationDetents([.medium, .large])
         }

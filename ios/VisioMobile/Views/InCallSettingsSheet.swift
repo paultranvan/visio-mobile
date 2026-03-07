@@ -5,6 +5,7 @@ struct InCallSettingsSheet: View {
     @EnvironmentObject private var manager: VisioManager
     @Environment(\.dismiss) private var dismiss
 
+    let roomURL: String
     @State var selectedTab: Int
 
     private var lang: String { manager.currentLang }
@@ -18,6 +19,7 @@ struct InCallSettingsSheet: View {
                     tabButton(icon: "mic.fill", tab: 0, label: Strings.t("settings.incall.micro", lang: lang))
                     tabButton(icon: "video.fill", tab: 1, label: Strings.t("settings.incall.camera", lang: lang))
                     tabButton(icon: "bell.fill", tab: 2, label: Strings.t("settings.incall.notifications", lang: lang))
+                    tabButton(icon: "info.circle.fill", tab: 3, label: Strings.t("settings.incall.roomInfo", lang: lang))
                     Spacer()
                 }
                 .padding(.vertical, 12)
@@ -32,6 +34,7 @@ struct InCallSettingsSheet: View {
                     case 0: microTab
                     case 1: cameraTab
                     case 2: notificationsTab
+                    case 3: roomInfoTab
                     default: microTab
                     }
                 }
@@ -122,6 +125,84 @@ struct InCallSettingsSheet: View {
     private var notificationsTab: some View {
         NotificationsTabContent()
             .environmentObject(manager)
+    }
+
+    // MARK: - Room Info Tab
+
+    private var roomInfoTab: some View {
+        let displayUrl = roomURL.replacingOccurrences(of: "https://", with: "")
+                                .replacingOccurrences(of: "http://", with: "")
+        let deepLink = "visio://\(displayUrl)"
+
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // HTTPS link
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Strings.t("settings.incall.roomLink", lang: lang))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+
+                    HStack {
+                        Image(systemName: "globe")
+                            .foregroundStyle(VisioColors.primary500)
+                        Text(displayUrl)
+                            .font(.caption)
+                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button {
+                            UIPasteboard.general.string = roomURL
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption)
+                        }
+                    }
+                    .padding(12)
+                    .background(VisioColors.surface(dark: isDark))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                // Deep link
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Strings.t("settings.incall.deepLink", lang: lang))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+
+                    HStack {
+                        Image(systemName: "apps.iphone")
+                            .foregroundStyle(VisioColors.primary500)
+                        Text(deepLink)
+                            .font(.caption)
+                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Button {
+                            UIPasteboard.general.string = deepLink
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption)
+                        }
+                    }
+                    .padding(12)
+                    .background(VisioColors.surface(dark: isDark))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+
+                // Share button
+                ShareLink(item: roomURL) {
+                    Label(Strings.t("settings.incall.share", lang: lang), systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(VisioColors.primary500)
+            }
+            .padding()
+        }
     }
 }
 
