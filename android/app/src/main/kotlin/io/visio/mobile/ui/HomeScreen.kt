@@ -73,6 +73,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.RoomValidationResult
+import uniffi.visio.UserSearchResult
+import androidx.compose.material.icons.filled.Close
 
 private const val TAG = "HomeScreen"
 
@@ -516,9 +518,29 @@ private fun CreateRoomDialog(
     var creating by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var createdUrl by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
+    var invitedUsers by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
+    var createdRoomId by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.length < 3) {
+            searchResults = emptyList()
+            return@LaunchedEffect
+        }
+        delay(300)
+        try {
+            val results = VisioManager.client.searchUsers(searchQuery)
+            searchResults = results.filter { user ->
+                invitedUsers.none { it.id == user.id }
+            }
+        } catch (_: Exception) {
+            searchResults = emptyList()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -550,6 +572,85 @@ private fun CreateRoomDialog(
                         Column(modifier = Modifier.padding(start = 4.dp)) {
                             Text(Strings.t("home.createRoom.trusted", lang), style = MaterialTheme.typography.bodyMedium)
                             Text(Strings.t("home.createRoom.trustedDesc", lang), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = accessLevel == "restricted",
+                            onClick = { accessLevel = "restricted" },
+                        )
+                        Column(modifier = Modifier.padding(start = 4.dp)) {
+                            Text(Strings.t("home.createRoom.restricted", lang), style = MaterialTheme.typography.bodyMedium)
+                            Text(Strings.t("home.createRoom.restrictedDesc", lang), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    if (accessLevel == "restricted") {
+                        Text(
+                            text = Strings.t("restricted.invite", lang),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text(Strings.t("restricted.searchUsers", lang)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall,
+                        )
+                        // Search results dropdown
+                        searchResults.forEach { user ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        invitedUsers = invitedUsers + user
+                                        searchQuery = ""
+                                        searchResults = emptyList()
+                                    }
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        user.fullName ?: user.email,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        user.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                        // Invited user chips
+                        if (invitedUsers.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                invitedUsers.forEach { user ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            user.fullName ?: user.email,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        IconButton(
+                                            onClick = { invitedUsers = invitedUsers.filter { it.id != user.id } },
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = Strings.t("restricted.remove", lang),
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -639,7 +740,16 @@ private fun CreateRoomDialog(
                                     "",
                                     accessLevel,
                                 )
+                                // Add accesses for invited users
+                                if (accessLevel == "restricted") {
+                                    for (user in invitedUsers) {
+                                        try {
+                                            VisioManager.client.addAccess(user.id, result.id)
+                                        } catch (_: Exception) { }
+                                    }
+                                }
                                 withContext(Dispatchers.Main) {
+                                    createdRoomId = result.id
                                     createdUrl = "https://$meetInstance/${result.slug}"
                                     creating = false
                                 }
