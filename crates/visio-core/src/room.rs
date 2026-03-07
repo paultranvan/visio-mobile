@@ -44,6 +44,8 @@ pub struct RoomManager {
     /// Chat unread tracking (shared with event loop).
     chat_open: Arc<AtomicBool>,
     unread_count: Arc<AtomicU32>,
+    /// Settings store for recording recent meetings.
+    settings_store: Option<Arc<crate::SettingsStore>>,
 }
 
 impl Default for RoomManager {
@@ -71,7 +73,12 @@ impl RoomManager {
             lobby_cancel: Arc::new(tokio::sync::Notify::new()),
             chat_open: Arc::new(AtomicBool::new(false)),
             unread_count: Arc::new(AtomicU32::new(0)),
+            settings_store: None,
         }
+    }
+
+    pub fn set_settings_store(&mut self, store: Arc<crate::SettingsStore>) {
+        self.settings_store = Some(store);
     }
 
     /// Get a reference to the audio playout buffer.
@@ -218,6 +225,13 @@ impl RoomManager {
             Ok(token_info) => {
                 self.connect_with_token(&token_info.livekit_url, &token_info.token)
                     .await?;
+
+                // Record in recent meetings history
+                if let Some(store) = &self.settings_store {
+                    if let Ok((server, slug)) = crate::AuthService::parse_meet_url(meet_url) {
+                        store.add_recent_meeting(slug, server);
+                    }
+                }
 
                 // Start lobby polling for host (authenticated users)
                 if session_cookie.is_some() {
