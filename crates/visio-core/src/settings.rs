@@ -4,6 +4,13 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RecentMeeting {
+    pub slug: String,
+    pub server: String,
+    pub timestamp_ms: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Settings {
     #[serde(default)]
     pub display_name: Option<String>,
@@ -25,6 +32,8 @@ pub struct Settings {
     pub notification_message_received: bool,
     #[serde(default = "default_background_mode")]
     pub background_mode: String,
+    #[serde(default)]
+    pub recent_meetings: Vec<RecentMeeting>,
 }
 
 fn default_meet_instances() -> Vec<String> {
@@ -59,6 +68,7 @@ impl Default for Settings {
             notification_hand_raised: true,
             notification_message_received: true,
             background_mode: "off".to_string(),
+            recent_meetings: Vec::new(),
         }
     }
 }
@@ -178,6 +188,36 @@ impl SettingsStore {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .background_mode = mode;
+        self.save();
+    }
+
+    pub fn get_recent_meetings(&self) -> Vec<RecentMeeting> {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .recent_meetings
+            .clone()
+    }
+
+    pub fn add_recent_meeting(&self, slug: String, server: String) {
+        let mut settings = self.settings.lock().unwrap_or_else(|e| e.into_inner());
+        settings
+            .recent_meetings
+            .retain(|m| !(m.slug == slug && m.server == server));
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        settings.recent_meetings.insert(
+            0,
+            RecentMeeting {
+                slug,
+                server,
+                timestamp_ms: now,
+            },
+        );
+        settings.recent_meetings.truncate(3);
+        drop(settings);
         self.save();
     }
 
@@ -402,6 +442,79 @@ mod tests {
         }
         let store = SettingsStore::new(path);
         assert_eq!(store.get_background_mode(), "image:3");
+    }
+
+    #[test]
+    fn test_default_recent_meetings_empty() {
+        let s = Settings::default();
+        assert!(s.recent_meetings.is_empty());
+    }
+
+    #[test]
+    fn test_add_recent_meeting() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        let store = SettingsStore::new(path);
+        store.add_recent_meeting("abc-defg-hij".to_string(), "meet.example.com".to_string());
+        let recent = store.get_recent_meetings();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].slug, "abc-defg-hij");
+        assert_eq!(recent[0].server, "meet.example.com");
+        assert!(recent[0].timestamp_ms > 0);
+    }
+
+    #[test]
+    fn test_recent_meetings_caps_at_three() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        let store = SettingsStore::new(path);
+        store.add_recent_meeting("aaa-bbbb-ccc".to_string(), "s.com".to_string());
+        store.add_recent_meeting("ddd-eeee-fff".to_string(), "s.com".to_string());
+        store.add_recent_meeting("ggg-hhhh-iii".to_string(), "s.com".to_string());
+        store.add_recent_meeting("jjj-kkkk-lll".to_string(), "s.com".to_string());
+        let recent = store.get_recent_meetings();
+        assert_eq!(recent.len(), 3);
+        assert_eq!(recent[0].slug, "jjj-kkkk-lll"); // most recent first
+    }
+
+    #[test]
+    fn test_recent_meetings_deduplicates() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        let store = SettingsStore::new(path);
+        store.add_recent_meeting("abc-defg-hij".to_string(), "s.com".to_string());
+        store.add_recent_meeting("ddd-eeee-fff".to_string(), "s.com".to_string());
+        store.add_recent_meeting("abc-defg-hij".to_string(), "s.com".to_string());
+        let recent = store.get_recent_meetings();
+        assert_eq!(recent.len(), 2);
+        assert_eq!(recent[0].slug, "abc-defg-hij"); // moved to front
+    }
+
+    #[test]
+    fn test_recent_meetings_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.add_recent_meeting("abc-defg-hij".to_string(), "s.com".to_string());
+        }
+        let store = SettingsStore::new(path);
+        let recent = store.get_recent_meetings();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn test_partial_json_defaults_recent_meetings() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"display_name":"Eve"}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        assert!(store.get_recent_meetings().is_empty());
     }
 
     #[test]
