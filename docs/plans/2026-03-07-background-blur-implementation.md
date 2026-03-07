@@ -6,7 +6,7 @@
 
 **Architecture:** A single Rust module in visio-ffi handles person segmentation (via ONNX Runtime + MediaPipe selfie segmentation model) and Gaussian blur compositing on I420 frames. The module intercepts frames after I420 conversion and before `capture_frame()` on all platforms. Settings are stored in visio-core. UI toggle is added to each platform's in-call settings.
 
-**Tech Stack:** Rust, ort (ONNX Runtime crate), MediaPipe selfie segmentation model (ONNX format, ~200KB), I420 pixel manipulation
+**Tech Stack:** Rust, ort (ONNX Runtime crate), jpeg-decoder, MediaPipe selfie segmentation model (ONNX format, ~200KB), I420 pixel manipulation, 8 background images from suitenumerique/meet (~8.7MB total)
 
 ---
 
@@ -151,7 +151,55 @@ pub fn resize_rgb(
 }
 ```
 
-**Step 2: Add unit tests for conversions**
+**Step 2: Add JPEG decoding and RGB-to-I420 conversion (for background image replacement)**
+
+Add `jpeg-decoder` dependency to `crates/visio-ffi/Cargo.toml`:
+```toml
+jpeg-decoder = "0.3"
+```
+
+```rust
+/// Decode JPEG bytes to packed RGB.
+pub fn decode_jpeg_to_rgb(jpeg_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut decoder = jpeg_decoder::Decoder::new(jpeg_bytes);
+    let pixels = decoder.decode().map_err(|e| e.to_string())?;
+    Ok(pixels)
+}
+
+/// Get JPEG dimensions without fully decoding.
+pub fn jpeg_dimensions(jpeg_bytes: &[u8]) -> Result<(usize, usize), String> {
+    let mut decoder = jpeg_decoder::Decoder::new(jpeg_bytes);
+    decoder.read_info().map_err(|e| e.to_string())?;
+    let info = decoder.info().ok_or("no JPEG info")?;
+    Ok((info.width as usize, info.height as usize))
+}
+
+/// Convert packed RGB to I420 planes (BT.601 full-range).
+pub fn rgb_to_i420(rgb: &[u8], width: usize, height: usize) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let mut y = vec![0u8; width * height];
+    let uv_w = width / 2;
+    let uv_h = height / 2;
+    let mut u_plane = vec![0u8; uv_w * uv_h];
+    let mut v_plane = vec![0u8; uv_w * uv_h];
+    for row in 0..height {
+        for col in 0..width {
+            let idx = (row * width + col) * 3;
+            let r = rgb[idx] as f32;
+            let g = rgb[idx + 1] as f32;
+            let b = rgb[idx + 2] as f32;
+            y[row * width + col] = (0.299 * r + 0.587 * g + 0.114 * b).clamp(0.0, 255.0) as u8;
+            if row % 2 == 0 && col % 2 == 0 {
+                let uv_idx = (row / 2) * uv_w + col / 2;
+                u_plane[uv_idx] = (-0.169 * r - 0.331 * g + 0.500 * b + 128.0).clamp(0.0, 255.0) as u8;
+                v_plane[uv_idx] = (0.500 * r - 0.419 * g - 0.081 * b + 128.0).clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+    (y, u_plane, v_plane)
+}
+```
+
+**Step 3: Add unit tests for conversions**
 
 ```rust
 #[cfg(test)]
@@ -416,7 +464,29 @@ feat(ffi): add fast box blur approximation for I420 planes
 use super::{convert, gaussian, model, segment};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-static BLUR_ENABLED: AtomicBool = AtomicBool::new(false);
+use std::sync::Mutex;
+
+/// Background mode: Off, Blur, or Image replacement (by image ID 1-8).
+#[derive(Clone, Debug, PartialEq)]
+pub enum BackgroundMode {
+    Off,
+    Blur,
+    Image(u8), // 1-8, corresponds to assets/backgrounds/{id}.jpg
+}
+
+static MODE: Mutex<BackgroundMode> = Mutex::new(BackgroundMode::Off);
+
+/// Cached replacement image in I420 format, resized to current frame dimensions.
+static REPLACEMENT_CACHE: Mutex<Option<ReplacementImage>> = Mutex::new(None);
+
+struct ReplacementImage {
+    id: u8,
+    width: usize,
+    height: usize,
+    y: Vec<u8>,
+    u: Vec<u8>,
+    v: Vec<u8>,
+}
 
 /// Blur radius for background (applied to each I420 plane scaled appropriately).
 const Y_BLUR_RADIUS: usize = 15;
@@ -425,23 +495,48 @@ const UV_BLUR_RADIUS: usize = 7; // Half resolution
 pub struct BlurProcessor;
 
 impl BlurProcessor {
-    pub fn set_enabled(enabled: bool) {
-        BLUR_ENABLED.store(enabled, Ordering::Relaxed);
+    pub fn set_mode(mode: BackgroundMode) {
+        // Clear replacement cache if mode changes
+        {
+            let mut cache = REPLACEMENT_CACHE.lock().unwrap();
+            if let BackgroundMode::Image(id) = &mode {
+                if let Some(ref c) = *cache {
+                    if c.id != *id { *cache = None; }
+                }
+            } else {
+                *cache = None;
+            }
+        }
+        *MODE.lock().unwrap() = mode;
     }
 
-    pub fn is_enabled() -> bool {
-        BLUR_ENABLED.load(Ordering::Relaxed)
+    pub fn get_mode() -> BackgroundMode {
+        MODE.lock().unwrap().clone()
     }
 
-    /// Process an I420 frame: segment person, blur background, composite.
+    /// Load a replacement image from raw JPEG bytes, decode to RGB, convert to I420.
+    /// Called once per image change (not per frame).
+    pub fn load_replacement_image(id: u8, jpeg_bytes: &[u8], target_w: usize, target_h: usize) -> Result<(), String> {
+        // Decode JPEG → RGB → resize to target → convert to I420
+        let rgb = convert::decode_jpeg_to_rgb(jpeg_bytes)?;
+        let (img_w, img_h) = convert::jpeg_dimensions(jpeg_bytes)?;
+        let rgb_resized = convert::resize_rgb(&rgb, img_w, img_h, target_w, target_h);
+        let (y, u, v) = convert::rgb_to_i420(&rgb_resized, target_w, target_h);
+        let mut cache = REPLACEMENT_CACHE.lock().unwrap();
+        *cache = Some(ReplacementImage { id, width: target_w, height: target_h, y, u, v });
+        Ok(())
+    }
+
+    /// Process an I420 frame: segment person, blur/replace background, composite.
     /// Modifies the planes in-place.
-    /// Returns false if blur could not be applied (model not loaded, etc.).
+    /// Returns false if processing could not be applied (model not loaded, mode Off, etc.).
     pub fn process_i420(
         y: &mut [u8], u: &mut [u8], v: &mut [u8],
         width: usize, height: usize,
         stride_y: usize, stride_u: usize, stride_v: usize,
     ) -> bool {
-        if !Self::is_enabled() {
+        let mode = Self::get_mode();
+        if mode == BackgroundMode::Off {
             return false;
         }
 
@@ -450,7 +545,7 @@ impl BlurProcessor {
             None => return false,
         };
 
-        // 1. Convert I420 to RGB
+        // 1. Convert I420 to RGB for segmentation
         let rgb = convert::i420_to_rgb(y, u, v, width, height, stride_y, stride_u, stride_v);
 
         // 2. Resize to 256x256 for model
@@ -465,19 +560,34 @@ impl BlurProcessor {
         // 4. Resize mask back to frame dimensions
         let mask = segment::resize_mask(&mask_256, width, height);
 
-        // 5. Blur each plane
-        let y_blurred = gaussian::blur_plane(y, width, height, stride_y, Y_BLUR_RADIUS);
+        // 5. Get background planes (blurred or replacement image)
         let uv_w = width / 2;
         let uv_h = height / 2;
-        let u_blurred = gaussian::blur_plane(u, uv_w, uv_h, stride_u, UV_BLUR_RADIUS);
-        let v_blurred = gaussian::blur_plane(v, uv_w, uv_h, stride_v, UV_BLUR_RADIUS);
+        let (bg_y, bg_u, bg_v) = match &mode {
+            BackgroundMode::Blur => {
+                let by = gaussian::blur_plane(y, width, height, stride_y, Y_BLUR_RADIUS);
+                let bu = gaussian::blur_plane(u, uv_w, uv_h, stride_u, UV_BLUR_RADIUS);
+                let bv = gaussian::blur_plane(v, uv_w, uv_h, stride_v, UV_BLUR_RADIUS);
+                (by, bu, bv)
+            }
+            BackgroundMode::Image(_) => {
+                let cache = REPLACEMENT_CACHE.lock().unwrap();
+                match &*cache {
+                    Some(img) if img.width == width && img.height == height => {
+                        (img.y.clone(), img.u.clone(), img.v.clone())
+                    }
+                    _ => return false, // Image not loaded or wrong size
+                }
+            }
+            BackgroundMode::Off => unreachable!(),
+        };
 
-        // 6. Composite: foreground (original) where mask > 0.5, background (blurred) elsewhere
+        // 6. Composite: foreground (original) where mask > 0.5, background elsewhere
         for row in 0..height {
             for col in 0..width {
                 let m = mask[row * width + col];
                 let idx = row * stride_y + col;
-                y[idx] = lerp_u8(y_blurred[row * width + col], y[idx], m);
+                y[idx] = lerp_u8(bg_y[row * width + col], y[idx], m);
             }
         }
         for row in 0..uv_h {
@@ -490,8 +600,8 @@ impl BlurProcessor {
                     / 4.0;
                 let idx_u = row * stride_u + col;
                 let idx_v = row * stride_v + col;
-                u[idx_u] = lerp_u8(u_blurred[row * uv_w + col], u[idx_u], m);
-                v[idx_v] = lerp_u8(v_blurred[row * uv_w + col], v[idx_v], m);
+                u[idx_u] = lerp_u8(bg_u[row * uv_w + col], u[idx_u], m);
+                v[idx_v] = lerp_u8(bg_v[row * uv_w + col], v[idx_v], m);
             }
         }
 
@@ -520,6 +630,23 @@ mod tests {
         let result = lerp_u8(0, 200, 0.5);
         assert!((result as i16 - 100).abs() <= 1);
     }
+
+    #[test]
+    fn mode_default_is_off() {
+        // Reset for test
+        *MODE.lock().unwrap() = BackgroundMode::Off;
+        assert_eq!(BlurProcessor::get_mode(), BackgroundMode::Off);
+    }
+
+    #[test]
+    fn set_mode_roundtrip() {
+        BlurProcessor::set_mode(BackgroundMode::Blur);
+        assert_eq!(BlurProcessor::get_mode(), BackgroundMode::Blur);
+        BlurProcessor::set_mode(BackgroundMode::Image(3));
+        assert_eq!(BlurProcessor::get_mode(), BackgroundMode::Image(3));
+        BlurProcessor::set_mode(BackgroundMode::Off);
+        assert_eq!(BlurProcessor::get_mode(), BackgroundMode::Off);
+    }
 }
 ```
 
@@ -535,27 +662,37 @@ feat(ffi): add BlurProcessor compositing pipeline
 
 ---
 
-## Task 6: Add blur setting to visio-core
+## Task 6: Add background mode setting to visio-core
 
 **Files:**
 - Modify: `crates/visio-core/src/settings.rs`
 - Modify: `crates/visio-core/src/controls.rs`
 
-**Step 1: Add `blur_enabled` to Settings struct**
+**Step 1: Add `BackgroundMode` to Settings struct**
 
-In `settings.rs`, add a `blur_enabled: bool` field to the settings struct with default `false`. Add `set_blur_enabled()` and `is_blur_enabled()` methods following the existing pattern (e.g., `set_mic_enabled_on_join`).
+In `settings.rs`, add a serializable background mode to the settings struct. Store as a string: `"off"`, `"blur"`, or `"image:N"` (N = 1-8). Default: `"off"`. Add `set_background_mode()` and `get_background_mode()` methods following the existing pattern.
 
-**Step 2: Add blur control to MeetingControls**
+**Step 2: Add background mode control to MeetingControls**
 
-In `controls.rs`, add `set_blur_enabled(enabled: bool)` and `is_blur_enabled() -> bool` methods. These should call `BlurProcessor::set_enabled()` when toggled.
+In `controls.rs`, add `set_background_mode(mode: &str)` and `get_background_mode() -> String` methods. These should call `BlurProcessor::set_mode()` when toggled, mapping the string to the `BackgroundMode` enum.
 
 **Step 3: Add tests**
 
 Follow the existing pattern in `settings::tests`:
 ```rust
 #[test]
-fn test_set_blur_enabled_persists() {
-    // ...similar to existing settings tests
+fn test_background_mode_defaults_to_off() {
+    // ...
+}
+
+#[test]
+fn test_set_background_mode_blur() {
+    // ...
+}
+
+#[test]
+fn test_set_background_mode_image() {
+    // ...set to "image:3", read back, verify
 }
 ```
 
@@ -566,7 +703,7 @@ Run: `cargo test -p visio-core --lib 2>&1 | tail -10`
 **Step 5: Commit**
 
 ```
-feat(core): add blur_enabled setting and control
+feat(core): add background_mode setting and control
 ```
 
 ---
@@ -578,7 +715,7 @@ feat(core): add blur_enabled setting and control
 
 **Step 1: Add UniFFI methods**
 
-Add `set_blur_enabled(enabled: bool)` and `is_blur_enabled() -> bool` to the VisioClient FFI interface, delegating to `MeetingControls`.
+Add `set_background_mode(mode: String)` and `get_background_mode() -> String` to the VisioClient FFI interface, delegating to `MeetingControls`. Also add `load_background_image(id: u8, jpeg_path: String)` which reads the JPEG file and calls `BlurProcessor::load_replacement_image()`.
 
 **Step 2: Hook into Android camera path**
 
@@ -620,12 +757,18 @@ feat(ffi): expose blur setting and hook into camera pipeline
 
 In `camera_macos.rs`, after I420 buffer construction (around line 145), call `BlurProcessor::process_i420()`.
 
-**Step 2: Add Tauri command for blur toggle**
+**Step 2: Add Tauri commands for background mode**
 
-In `lib.rs`, add `toggle_blur` command:
+In `lib.rs`, add commands:
 ```rust
 #[tauri::command]
-fn toggle_blur(state: State<'_, VisioState>, enabled: bool) -> Result<(), String> {
+fn set_background_mode(state: State<'_, VisioState>, mode: String) -> Result<(), String> {
+    // Parse mode string ("off", "blur", "image:N") and call BlurProcessor::set_mode()
+    // If image mode, load the image from bundled resources
+}
+
+#[tauri::command]
+fn get_background_mode(state: State<'_, VisioState>) -> String {
     // ...
 }
 ```
@@ -638,125 +781,212 @@ feat(desktop): integrate background blur into camera pipeline
 
 ---
 
-## Task 9: Android UI — blur toggle
+## Task 9: Android UI — background mode picker
 
 **Files:**
 - Modify: `android/app/src/main/kotlin/io/visio/mobile/ui/InCallSettingsSheet.kt`
 - Modify: `i18n/en.json`
 - Modify: `i18n/fr.json`
 
-**Step 1: Add blur toggle to camera tab**
+**Step 1: Add background section to camera tab**
 
-In the camera tab of InCallSettingsSheet, add a Switch toggle:
+In the camera tab of InCallSettingsSheet, add a "Background" section with:
+- "None" option (BackgroundMode.Off)
+- "Blur" option with blur icon
+- Grid of 8 thumbnail images (loaded from `assets/backgrounds/thumbnails/`)
+- Selected item highlighted with primary color border
+
 ```kotlin
-Row(
-    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically,
-) {
-    Text(Strings.t("settings.incall.blur", lang))
-    Switch(
-        checked = blurEnabled,
-        onCheckedChange = { enabled ->
-            blurEnabled = enabled
-            coroutineScope.launch(Dispatchers.IO) {
-                VisioManager.client.setBlurEnabled(enabled)
-            }
-        },
+// Background mode section
+Text(Strings.t("settings.incall.background", lang), style = MaterialTheme.typography.titleSmall)
+
+// Off + Blur row
+Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    BackgroundOption(
+        label = Strings.t("settings.incall.bgOff", lang),
+        icon = Icons.Default.Block,
+        selected = backgroundMode == "off",
+        onClick = { setBackgroundMode("off") }
     )
+    BackgroundOption(
+        label = Strings.t("settings.incall.bgBlur", lang),
+        icon = Icons.Default.BlurOn,
+        selected = backgroundMode == "blur",
+        onClick = { setBackgroundMode("blur") }
+    )
+}
+
+// Image grid (4 columns, 2 rows)
+LazyVerticalGrid(columns = GridCells.Fixed(4), ...) {
+    items(8) { index ->
+        val id = index + 1
+        BackgroundImageOption(
+            thumbnailAsset = "backgrounds/thumbnails/$id.jpg",
+            selected = backgroundMode == "image:$id",
+            onClick = { setBackgroundMode("image:$id") }
+        )
+    }
 }
 ```
 
 **Step 2: Add i18n keys**
 
-en.json: `"settings.incall.blur": "Background blur"`
-fr.json: `"settings.incall.blur": "Flou d'arriere-plan"`
+en.json:
+```json
+"settings.incall.background": "Background",
+"settings.incall.bgOff": "None",
+"settings.incall.bgBlur": "Blur"
+```
 
-**Step 3: Build and verify**
+fr.json:
+```json
+"settings.incall.background": "Arrière-plan",
+"settings.incall.bgOff": "Aucun",
+"settings.incall.bgBlur": "Flou"
+```
+
+**Step 3: Copy background assets**
+
+Copy `assets/backgrounds/` (8 full images + 8 thumbnails) to `android/app/src/main/assets/backgrounds/`.
+
+**Step 4: Build and verify**
 
 Run: `cd android && ./gradlew compileDebugKotlin 2>&1 | tail -10`
+
+**Step 5: Commit**
+
+```
+feat(android): add background mode picker in in-call settings
+```
+
+---
+
+## Task 10: iOS UI — background mode picker
+
+**Files:**
+- Modify: `ios/VisioMobile/Views/InCallSettingsSheet.swift`
+- Modify: `ios/VisioMobile/VisioManager.swift`
+
+**Step 1: Add `backgroundMode` published property to VisioManager**
+
+In `VisioManager.swift`, add `@Published var backgroundMode: String = "off"`.
+
+**Step 2: Add background section to camera tab**
+
+In the camera section of InCallSettingsSheet, add a "Background" section with:
+- "None" button (mode = "off")
+- "Blur" button with icon
+- Grid of 8 thumbnail images (bundled in app, loaded from `backgrounds/thumbnails/`)
+- Selected item highlighted with primary color border
+
+```swift
+Section(Strings.t("settings.incall.background", lang: lang)) {
+    // Off + Blur options
+    HStack(spacing: 12) {
+        BackgroundOptionButton(
+            label: Strings.t("settings.incall.bgOff", lang: lang),
+            systemIcon: "circle.slash",
+            selected: manager.backgroundMode == "off",
+            isDark: isDark
+        ) { setMode("off") }
+
+        BackgroundOptionButton(
+            label: Strings.t("settings.incall.bgBlur", lang: lang),
+            systemIcon: "aqi.medium",
+            selected: manager.backgroundMode == "blur",
+            isDark: isDark
+        ) { setMode("blur") }
+    }
+
+    // Image grid (4 columns)
+    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+        ForEach(1...8, id: \.self) { id in
+            if let img = UIImage(named: "backgrounds/thumbnails/\(id)") {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(16/9, contentMode: .fill)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(manager.backgroundMode == "image:\(id)" ? VisioColors.primary500 : .clear, lineWidth: 3)
+                    )
+                    .onTapGesture { setMode("image:\(id)") }
+            }
+        }
+    }
+}
+```
+
+**Step 3: Add background images to Xcode project**
+
+Copy `assets/backgrounds/` to `ios/VisioMobile/Resources/backgrounds/` and add to Xcode bundle resources.
 
 **Step 4: Commit**
 
 ```
-feat(android): add background blur toggle in in-call settings
+feat(ios): add background mode picker in in-call settings
 ```
 
 ---
 
-## Task 10: iOS UI — blur toggle
-
-**Files:**
-- Modify: `ios/VisioMobile/Views/InCallSettingsSheet.swift`
-
-**Step 1: Add blur toggle to camera tab**
-
-In the camera section of InCallSettingsSheet, add a Toggle:
-```swift
-Toggle(Strings.t("settings.incall.blur", lang: lang), isOn: Binding(
-    get: { manager.isBlurEnabled },
-    set: { enabled in
-        DispatchQueue.global(qos: .userInitiated).async {
-            manager.client.setBlurEnabled(enabled: enabled)
-            DispatchQueue.main.async {
-                manager.isBlurEnabled = enabled
-            }
-        }
-    }
-))
-```
-
-**Step 2: Add `isBlurEnabled` published property to VisioManager**
-
-In `VisioManager.swift`, add `@Published var isBlurEnabled: Bool = false`.
-
-**Step 3: Commit**
-
-```
-feat(ios): add background blur toggle in in-call settings
-```
-
----
-
-## Task 11: Desktop UI — blur toggle
+## Task 11: Desktop UI — background mode picker
 
 **Files:**
 - Modify: `crates/visio-desktop/frontend/src/App.tsx`
 
-**Step 1: Add blur toggle to settings/camera section**
+**Step 1: Add background mode picker to settings/camera section**
 
-Add a toggle switch in the camera settings area:
+Add a section with Off/Blur buttons and a grid of 8 thumbnail images:
 ```tsx
-<label className="flex items-center gap-2">
-  <input
-    type="checkbox"
-    checked={blurEnabled}
-    onChange={async (e) => {
-      const enabled = e.target.checked;
-      setBlurEnabled(enabled);
-      await invoke("toggle_blur", { enabled });
-    }}
-  />
-  {t("settings.incall.blur")}
-</label>
+<div className="background-picker">
+  <h4>{t("settings.incall.background")}</h4>
+  <div className="bg-options">
+    <button
+      className={`bg-option ${mode === "off" ? "selected" : ""}`}
+      onClick={() => setMode("off")}
+    >
+      {t("settings.incall.bgOff")}
+    </button>
+    <button
+      className={`bg-option ${mode === "blur" ? "selected" : ""}`}
+      onClick={() => setMode("blur")}
+    >
+      {t("settings.incall.bgBlur")}
+    </button>
+  </div>
+  <div className="bg-grid">
+    {[1,2,3,4,5,6,7,8].map(id => (
+      <img
+        key={id}
+        src={`/backgrounds/thumbnails/${id}.jpg`}
+        className={`bg-thumb ${mode === `image:${id}` ? "selected" : ""}`}
+        onClick={() => setMode(`image:${id}`)}
+      />
+    ))}
+  </div>
+</div>
 ```
 
-**Step 2: Commit**
+**Step 2: Copy background assets to Tauri resources**
+
+Copy `assets/backgrounds/` to `crates/visio-desktop/frontend/public/backgrounds/`.
+
+**Step 3: Commit**
 
 ```
-feat(desktop): add background blur toggle in settings
+feat(desktop): add background mode picker in settings
 ```
 
 ---
 
-## Task 12: Model bundling and first-run download
+## Task 12: Model and image bundling
 
 **Files:**
 - Create: `scripts/download-models.sh`
-- Modify: Android `build.gradle` (copy model to assets)
-- Modify: iOS Xcode project (add model to bundle)
+- Modify: Android `build.gradle` (copy model + images to assets)
+- Modify: iOS Xcode project (add model + images to bundle)
 
-**Step 1: Create download script**
+**Step 1: Create download script for ONNX model**
 
 ```bash
 #!/bin/bash
@@ -767,20 +997,30 @@ mkdir -p "$MODEL_DIR"
 curl -L -o "$MODEL_DIR/selfie_segmentation.onnx" "$MODEL_URL"
 ```
 
-**Step 2: Platform-specific model bundling**
+**Step 2: Platform-specific bundling**
 
-- Android: copy `models/selfie_segmentation.onnx` to `android/app/src/main/assets/models/`
-- iOS: add to Xcode project as a bundle resource
-- Desktop: include in Tauri resources
+Assets to bundle per platform:
+- `models/selfie_segmentation.onnx` (~200KB)
+- `assets/backgrounds/1-8.jpg` (8 full images, ~8.7MB total)
+- `assets/backgrounds/thumbnails/1-8.jpg` (8 thumbnails, ~165KB total)
 
-**Step 3: Load model on first blur enable**
+Bundling:
+- Android: copy to `android/app/src/main/assets/` (models/ + backgrounds/)
+- iOS: add to Xcode project as bundle resources in `Resources/`
+- Desktop: include in Tauri resources directory
 
-In each platform, when blur is first toggled on, call `model::load_model(path)` with the correct asset path.
+**Step 3: Load model on first background mode change**
 
-**Step 4: Commit**
+In each platform, when mode is first changed from "off", call `model::load_model(path)` with the correct asset path.
+
+**Step 4: Load replacement image on image mode selection**
+
+When user selects `image:N`, platform reads the JPEG file bytes from assets and calls `BlurProcessor::load_replacement_image(id, jpeg_bytes, frame_width, frame_height)`.
+
+**Step 5: Commit**
 
 ```
-feat: add model bundling and loading for background blur
+feat: bundle ONNX model and background images for all platforms
 ```
 
 ---
@@ -794,12 +1034,12 @@ feat: add model bundling and loading for background blur
 | 3 | Segmentation inference | Medium |
 | 4 | Gaussian blur (box blur approx) | Medium |
 | 5 | BlurProcessor compositing | Medium |
-| 6 | Settings in visio-core | Low |
+| 6 | Background mode setting in visio-core | Low |
 | 7 | FFI exposure + camera hooks (Android/iOS) | High |
-| 8 | Desktop camera hook + Tauri command | Medium |
-| 9 | Android UI toggle | Low |
-| 10 | iOS UI toggle | Low |
-| 11 | Desktop UI toggle | Low |
-| 12 | Model bundling | Medium |
+| 8 | Desktop camera hook + Tauri commands | Medium |
+| 9 | Android UI — background mode picker | Medium |
+| 10 | iOS UI — background mode picker | Medium |
+| 11 | Desktop UI — background mode picker | Medium |
+| 12 | Model + image bundling | Medium |
 
 **Total: 12 tasks. Branch: `feat/background-blur`. PR when all tasks pass.**
