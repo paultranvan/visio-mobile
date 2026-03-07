@@ -9,6 +9,9 @@ import android.os.Build
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -49,23 +53,30 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.visio.mobile.R
+import io.visio.mobile.ReactionData
 import io.visio.mobile.VideoSurfaceView
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.ConnectionState
@@ -73,6 +84,17 @@ import uniffi.visio.ParticipantInfo
 import kotlin.math.absoluteValue
 
 private const val TAG = "CallScreen"
+
+private val REACTION_EMOJIS = listOf(
+    "thumbs-up" to "\uD83D\uDC4D",
+    "thumbs-down" to "\uD83D\uDC4E",
+    "clapping-hands" to "\uD83D\uDC4F",
+    "red-heart" to "\u2764\uFE0F",
+    "face-with-tears-of-joy" to "\uD83D\uDE02",
+    "face-with-open-mouth" to "\uD83D\uDE2E",
+    "party-popper" to "\uD83C\uDF89",
+    "folded-hands" to "\uD83D\uDE4F",
+)
 
 fun Context.findActivity(): Activity? {
     var ctx = this
@@ -107,6 +129,8 @@ fun CallScreen(
     var inCallSettingsTab by remember { mutableIntStateOf(0) }
     var showParticipantList by remember { mutableStateOf(false) }
     var focusedParticipantSid by remember { mutableStateOf<String?>(null) }
+    var showReactionPicker by remember { mutableStateOf(false) }
+    val reactions by VisioManager.reactions.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -312,7 +336,7 @@ fun CallScreen(
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 
-            // Video grid area
+            // Video grid area with reaction overlay
             Box(
                 modifier =
                     Modifier
@@ -387,9 +411,38 @@ fun CallScreen(
                         }
                     }
                 }
+
+                // Reaction overlay on top of video grid
+                ReactionOverlay(reactions = reactions)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Reaction picker (above control bar)
+            if (showReactionPicker) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    REACTION_EMOJIS.forEach { (id, emoji) ->
+                        Text(
+                            text = emoji,
+                            fontSize = 28.sp,
+                            modifier = Modifier
+                                .clickable {
+                                    VisioManager.sendReaction(id)
+                                    showReactionPicker = false
+                                }
+                                .padding(4.dp),
+                        )
+                    }
+                }
+            }
 
             // Control bar
             ControlBar(
@@ -398,6 +451,7 @@ fun CallScreen(
                 isHandRaised = isHandRaised,
                 unreadCount = unreadCount,
                 participantCount = participants.size,
+                showReactionPicker = showReactionPicker,
                 lang = lang,
                 onToggleMic = {
                     val newState = !micEnabled
@@ -482,6 +536,7 @@ fun CallScreen(
                         }
                     }
                 },
+                onReaction = { showReactionPicker = !showReactionPicker },
                 onParticipants = { showParticipantList = true },
                 onSettings = {
                     inCallSettingsTab = 0
@@ -506,11 +561,13 @@ private fun ControlBar(
     isHandRaised: Boolean,
     unreadCount: Int,
     participantCount: Int,
+    showReactionPicker: Boolean,
     lang: String,
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
     onToggleHandRaise: () -> Unit,
+    onReaction: () -> Unit,
     onParticipants: () -> Unit,
     onSettings: () -> Unit,
     onChat: () -> Unit,
@@ -600,6 +657,25 @@ private fun ControlBar(
                 painter = painterResource(R.drawable.ri_hand),
                 contentDescription = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
                 tint = if (isHandRaised) Color.Black else VisioColors.White,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+
+        // Reaction emoji
+        IconButton(
+            onClick = onReaction,
+            modifier =
+                Modifier
+                    .size(38.dp)
+                    .background(
+                        if (showReactionPicker) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                        RoundedCornerShape(8.dp),
+                    ),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_emotion_line),
+                contentDescription = "Reaction",
+                tint = VisioColors.White,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -919,5 +995,76 @@ private fun ConnectionStateBanner(
             }
         }
         // Connected / Disconnected: no banner
+    }
+}
+
+@Composable
+private fun ReactionOverlay(reactions: List<ReactionData>) {
+    val now = System.currentTimeMillis()
+    val activeReactions = reactions.filter { now - it.timestamp < 3000L }
+
+    // Periodically trigger recomposition to remove expired reactions
+    var tick by remember { mutableStateOf(0L) }
+    LaunchedEffect(reactions.size) {
+        if (reactions.isNotEmpty()) {
+            delay(3100L)
+            tick = System.currentTimeMillis()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        activeReactions.forEach { reaction ->
+            FloatingReaction(reaction = reaction, modifier = Modifier.align(Alignment.BottomStart))
+        }
+    }
+}
+
+@Composable
+private fun FloatingReaction(reaction: ReactionData, modifier: Modifier = Modifier) {
+    val emojiDisplay = REACTION_EMOJIS.find { it.first == reaction.emoji }?.second ?: reaction.emoji
+    val density = LocalDensity.current
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    // Deterministic horizontal position based on reaction id (left 20% of screen)
+    val xOffsetDp = remember(reaction.id) {
+        ((reaction.id * 37 + 13) % (screenWidthDp * 20 / 100)).toInt()
+    }
+
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(reaction.id) {
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 3000, easing = LinearEasing),
+        )
+    }
+
+    val yOffset = with(density) { (-300.dp * progress.value).roundToPx() }
+    val alphaValue = if (progress.value > 0.7f) {
+        1f - ((progress.value - 0.7f) / 0.3f)
+    } else {
+        1f
+    }
+
+    Column(
+        modifier = modifier
+            .offset { IntOffset(with(density) { xOffsetDp.dp.roundToPx() }, yOffset) }
+            .alpha(alphaValue),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = emojiDisplay,
+            fontSize = 32.sp,
+        )
+        Text(
+            text = reaction.participantName,
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp, vertical = 1.dp),
+        )
     }
 }
