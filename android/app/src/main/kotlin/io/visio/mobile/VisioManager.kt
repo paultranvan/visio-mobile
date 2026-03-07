@@ -88,6 +88,8 @@ object VisioManager : VisioEventListener {
         private set
     var authenticatedEmail by mutableStateOf("")
         private set
+    var authenticatedMeetInstance by mutableStateOf("")
+        private set
 
     lateinit var authManager: OidcAuthManager
         private set
@@ -152,6 +154,7 @@ object VisioManager : VisioEventListener {
                 isAuthenticated = true
                 authenticatedDisplayName = state.displayName
                 authenticatedEmail = state.email
+                authenticatedMeetInstance = state.meetInstance
                 if (displayName.isEmpty()) {
                     displayName = state.displayName
                 }
@@ -160,6 +163,7 @@ object VisioManager : VisioEventListener {
                 isAuthenticated = false
                 authenticatedDisplayName = ""
                 authenticatedEmail = ""
+                authenticatedMeetInstance = ""
             }
         }
     }
@@ -189,8 +193,12 @@ object VisioManager : VisioEventListener {
     fun logout() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val meetInstance = client.getMeetInstances().firstOrNull() ?: return@launch
-                client.logout("https://$meetInstance")
+                val instance = authenticatedMeetInstance.ifEmpty {
+                    client.getMeetInstances().firstOrNull() ?: ""
+                }
+                if (instance.isNotEmpty()) {
+                    client.logout("https://$instance")
+                }
             } catch (_: Exception) {}
             authManager.clearCookie()
             // Clear WebView cookies so SSO session doesn't auto-reconnect
@@ -199,6 +207,7 @@ object VisioManager : VisioEventListener {
                 isAuthenticated = false
                 authenticatedDisplayName = ""
                 authenticatedEmail = ""
+                authenticatedMeetInstance = ""
             }
         }
     }

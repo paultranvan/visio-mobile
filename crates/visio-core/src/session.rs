@@ -38,13 +38,18 @@ pub struct CreateRoomResponse {
     pub name: String,
     pub slug: String,
     pub access_level: String,
-    pub livekit: CreateRoomLiveKit,
+    #[serde(default)]
+    pub livekit: Option<CreateRoomLiveKit>,
 }
 
 #[derive(Debug, Clone)]
 pub enum SessionState {
     Anonymous,
-    Authenticated { user: UserInfo, cookie: String },
+    Authenticated {
+        user: UserInfo,
+        cookie: String,
+        meet_instance: String,
+    },
 }
 
 pub struct SessionManager {
@@ -68,8 +73,12 @@ impl SessionManager {
         &self.state
     }
 
-    pub fn set_authenticated(&mut self, user: UserInfo, cookie: String) {
-        self.state = SessionState::Authenticated { user, cookie };
+    pub fn set_authenticated(&mut self, user: UserInfo, cookie: String, meet_instance: String) {
+        self.state = SessionState::Authenticated {
+            user,
+            cookie,
+            meet_instance,
+        };
     }
 
     pub fn clear(&mut self) {
@@ -86,6 +95,13 @@ impl SessionManager {
     pub fn user(&self) -> Option<&UserInfo> {
         match &self.state {
             SessionState::Authenticated { user, .. } => Some(user),
+            SessionState::Anonymous => None,
+        }
+    }
+
+    pub fn meet_instance(&self) -> Option<&str> {
+        match &self.state {
+            SessionState::Authenticated { meet_instance, .. } => Some(meet_instance),
             SessionState::Anonymous => None,
         }
     }
@@ -132,10 +148,19 @@ impl SessionManager {
             Some(c) => c,
             None => return Ok(false),
         };
+        let instance = meet_url
+            .trim_end_matches('/')
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .to_string();
 
         match Self::fetch_user(meet_url, &cookie).await {
             Ok(user) => {
-                self.state = SessionState::Authenticated { user, cookie };
+                self.state = SessionState::Authenticated {
+                    user,
+                    cookie,
+                    meet_instance: instance,
+                };
                 Ok(true)
             }
             Err(_) => {
@@ -175,8 +200,20 @@ impl SessionManager {
 
         let cookie_header = format!("sessionid={}; csrftoken={}", cookie, csrf_token);
 
+        // Generate a random slug in xxx-yyyy-zzz format (lowercase letters only)
+        let slug_name = {
+            let mut rng = rand::thread_rng();
+            let mut rand_char = || (b'a' + rng.r#gen::<u8>() % 26) as char;
+            let p1: String = (0..3).map(|_| rand_char()).collect();
+            let p2: String = (0..4).map(|_| rand_char()).collect();
+            let p3: String = (0..3).map(|_| rand_char()).collect();
+            format!("{}-{}-{}", p1, p2, p3)
+        };
+
+        let room_name = if name.trim().is_empty() { &slug_name } else { name };
+
         let body = serde_json::json!({
-            "name": name,
+            "name": room_name,
             "access_level": access_level,
         });
 
@@ -208,10 +245,15 @@ impl SessionManager {
             )));
         }
 
-        response
-            .json()
+        let body = response
+            .text()
             .await
-            .map_err(|e| VisioError::Session(format!("Invalid room response: {}", e)))
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        tracing::debug!("create_room response body: {}", body);
+
+        serde_json::from_str::<CreateRoomResponse>(&body)
+            .map_err(|e| VisioError::Session(format!("Invalid room response: {} — body: {}", e, body)))
     }
 }
 
@@ -234,7 +276,7 @@ mod tests {
             full_name: Some("Test User".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user.clone(), "abc123".to_string());
+        session.set_authenticated(user.clone(), "abc123".to_string(), "meet.example.com".to_string());
         match session.state() {
             SessionState::Authenticated { user: u, .. } => {
                 assert_eq!(u.display_name(), "Test User");
@@ -252,7 +294,7 @@ mod tests {
             full_name: Some("Test".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user, "abc123".to_string());
+        session.set_authenticated(user, "abc123".to_string(), "meet.example.com".to_string());
         session.clear();
         assert!(matches!(session.state(), SessionState::Anonymous));
     }
@@ -272,7 +314,7 @@ mod tests {
             full_name: Some("A".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user, "mycookie".to_string());
+        session.set_authenticated(user, "mycookie".to_string(), "meet.example.com".to_string());
         assert_eq!(session.cookie(), Some("mycookie".to_string()));
     }
 
@@ -300,8 +342,9 @@ mod tests {
         assert_eq!(resp.slug, "test-room");
         assert_eq!(resp.name, "Test Room");
         assert_eq!(resp.access_level, "public");
-        assert_eq!(resp.livekit.url, "https://livekit.example.com");
-        assert!(!resp.livekit.token.is_empty());
+        let lk = resp.livekit.unwrap();
+        assert_eq!(lk.url, "https://livekit.example.com");
+        assert!(!lk.token.is_empty());
     }
 
     #[tokio::test]

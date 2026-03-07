@@ -265,7 +265,11 @@ pub enum RoomValidationResult {
 #[derive(Debug, Clone)]
 pub enum SessionState {
     Anonymous,
-    Authenticated { display_name: String, email: String },
+    Authenticated {
+        display_name: String,
+        email: String,
+        meet_instance: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -443,13 +447,18 @@ impl VisioClient {
     pub fn connect(&self, meet_url: String, username: Option<String>) -> Result<(), VisioError> {
         visio_log(&format!("VISIO FFI: connect() entered, url={meet_url}"));
 
+        let cookie = {
+            let session = self.session_manager.lock().unwrap();
+            session.cookie()
+        };
+
         // Wrap in catch_unwind to prevent panics from crossing FFI boundary (UB → SIGSEGV).
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             visio_log("VISIO FFI: about to call block_on");
             let res = self.rt.block_on(async {
                 visio_log("VISIO FFI: inside block_on async block");
                 self.room_manager
-                    .connect(&meet_url, username.as_deref(), None)
+                    .connect(&meet_url, username.as_deref(), cookie.as_deref())
                     .await
                     .map_err(VisioError::from)
             });
@@ -709,8 +718,13 @@ impl VisioClient {
             visio_core::SessionManager::fetch_user(&meet_url, &cookie)
         ).map_err(VisioError::from)?;
 
+        let instance = meet_url
+            .trim_end_matches('/')
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .to_string();
         let mut session = self.session_manager.lock().unwrap();
-        session.set_authenticated(user, cookie);
+        session.set_authenticated(user, cookie, instance);
         Ok(())
     }
 
@@ -719,9 +733,14 @@ impl VisioClient {
         let session = self.session_manager.lock().unwrap();
         match session.state() {
             visio_core::SessionState::Anonymous => SessionState::Anonymous,
-            visio_core::SessionState::Authenticated { user, .. } => SessionState::Authenticated {
+            visio_core::SessionState::Authenticated {
+                user,
+                meet_instance,
+                ..
+            } => SessionState::Authenticated {
                 display_name: user.display_name(),
                 email: user.email.clone(),
+                meet_instance: meet_instance.clone(),
             },
         }
     }
@@ -763,18 +782,20 @@ impl VisioClient {
             ))
             .map_err(VisioError::from)?;
 
-        let livekit_url = result
-            .livekit
-            .url
-            .replace("https://", "wss://")
-            .replace("http://", "ws://");
+        let (livekit_url, livekit_token) = match result.livekit {
+            Some(lk) => (
+                lk.url.replace("https://", "wss://").replace("http://", "ws://"),
+                lk.token,
+            ),
+            None => (String::new(), String::new()),
+        };
 
         Ok(CreateRoomResult {
             slug: result.slug,
             name: result.name,
             access_level: result.access_level,
             livekit_url,
-            livekit_token: result.livekit.token,
+            livekit_token,
         })
     }
 

@@ -32,6 +32,7 @@ class VisioManager: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var authenticatedDisplayName: String = ""
     @Published var authenticatedEmail: String = ""
+    @Published var authenticatedMeetInstance: String = ""
 
     let authManager = OidcAuthManager()
 
@@ -266,10 +267,11 @@ class VisioManager: ObservableObject {
 
     private func updateSessionFromState(_ state: SessionState) {
         switch state {
-        case .authenticated(let displayName, let email):
+        case .authenticated(let displayName, let email, let meetInstance):
             isAuthenticated = true
             authenticatedDisplayName = displayName
             authenticatedEmail = email
+            authenticatedMeetInstance = meetInstance
             if self.displayName.isEmpty {
                 self.displayName = displayName
             }
@@ -277,6 +279,7 @@ class VisioManager: ObservableObject {
             isAuthenticated = false
             authenticatedDisplayName = ""
             authenticatedEmail = ""
+            authenticatedMeetInstance = ""
         }
     }
 
@@ -304,15 +307,19 @@ class VisioManager: ObservableObject {
     }
 
     func logoutSession() {
-        guard let meetInstance = client.getMeetInstances().first else { return }
+        let instance = authenticatedMeetInstance.isEmpty
+            ? client.getMeetInstances().first ?? ""
+            : authenticatedMeetInstance
+        guard !instance.isEmpty else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            try? self.client.logout(meetUrl: "https://\(meetInstance)")
+            try? self.client.logout(meetUrl: "https://\(instance)")
             self.authManager.clearCookie()
             DispatchQueue.main.async {
                 self.isAuthenticated = false
                 self.authenticatedDisplayName = ""
                 self.authenticatedEmail = ""
+                self.authenticatedMeetInstance = ""
             }
         }
     }

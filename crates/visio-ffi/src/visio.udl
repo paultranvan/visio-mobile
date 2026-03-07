@@ -108,7 +108,7 @@ interface RoomValidationResult {
 [Enum]
 interface SessionState {
     Anonymous();
-    Authenticated(string display_name, string email);
+    Authenticated(string display_name, string email, string meet_instance);
 };
 
 dictionary CreateRoomResult {

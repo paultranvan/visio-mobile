@@ -4,7 +4,7 @@ use serde::Deserialize;
 /// Response from the Meet API.
 #[derive(Debug, Deserialize)]
 struct MeetApiResponse {
-    livekit: LiveKitCredentials,
+    livekit: Option<LiveKitCredentials>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -73,21 +73,29 @@ impl AuthService {
             )));
         }
 
-        let data: MeetApiResponse = resp
-            .json()
+        let body = resp
+            .text()
             .await
-            .map_err(|e| VisioError::Auth(format!("invalid Meet API response: {e}")))?;
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        tracing::info!("Meet API response body: {}", body);
+
+        let data: MeetApiResponse = serde_json::from_str(&body)
+            .map_err(|e| VisioError::Auth(format!("invalid Meet API response: {e} — body: {body}")))?;
+
+        let lk = data.livekit.ok_or_else(|| {
+            VisioError::Auth("Room is not ready yet — waiting for host approval".to_string())
+        })?;
 
         // Convert URL to WebSocket
-        let livekit_url = data
-            .livekit
+        let livekit_url = lk
             .url
             .replace("https://", "wss://")
             .replace("http://", "ws://");
 
         Ok(TokenInfo {
             livekit_url,
-            token: data.livekit.token,
+            token: lk.token,
         })
     }
 

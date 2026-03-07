@@ -649,6 +649,10 @@ async fn launch_oidc(
     )
     .title("Sign in")
     .inner_size(520.0, 700.0)
+    .on_navigation(|url| {
+        tracing::debug!("auth window navigating to: {}", url);
+        true // allow all navigation in the auth window
+    })
     .on_page_load({
         let tx = tx.clone();
         move |webview, payload| {
@@ -693,11 +697,12 @@ async fn launch_oidc(
         .await
         .map_err(|e| e.to_string())?;
     let mut session = state.session.lock().await;
-    session.set_authenticated(user.clone(), session_cookie);
+    session.set_authenticated(user.clone(), session_cookie, meet_instance.clone());
 
     Ok(serde_json::json!({
         "display_name": user.display_name(),
         "email": user.email,
+        "meet_instance": meet_instance,
     }))
 }
 
@@ -711,7 +716,12 @@ async fn authenticate(
         .await
         .map_err(|e| e.to_string())?;
     let mut session = state.session.lock().await;
-    session.set_authenticated(user.clone(), cookie);
+    let instance = meet_url
+        .trim_end_matches('/')
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .to_string();
+    session.set_authenticated(user.clone(), cookie, instance);
     Ok(serde_json::json!({
         "display_name": user.display_name(),
         "email": user.email,
@@ -750,18 +760,20 @@ async fn create_room(
     .await
     .map_err(|e| e.to_string())?;
 
-    let livekit_url = result
-        .livekit
-        .url
-        .replace("https://", "wss://")
-        .replace("http://", "ws://");
+    let (livekit_url, livekit_token) = match result.livekit {
+        Some(lk) => (
+            lk.url.replace("https://", "wss://").replace("http://", "ws://"),
+            lk.token,
+        ),
+        None => (String::new(), String::new()),
+    };
 
     Ok(serde_json::json!({
         "slug": result.slug,
         "name": result.name,
         "access_level": result.access_level,
         "livekit_url": livekit_url,
-        "livekit_token": result.livekit.token,
+        "livekit_token": livekit_token,
     }))
 }
 
@@ -772,10 +784,15 @@ async fn get_session_state(
     let session = state.session.lock().await;
     match session.state() {
         SessionState::Anonymous => Ok(serde_json::json!({ "state": "anonymous" })),
-        SessionState::Authenticated { user, .. } => Ok(serde_json::json!({
+        SessionState::Authenticated {
+            user,
+            meet_instance,
+            ..
+        } => Ok(serde_json::json!({
             "state": "authenticated",
             "display_name": user.display_name(),
             "email": user.email,
+            "meet_instance": meet_instance,
         })),
     }
 }
