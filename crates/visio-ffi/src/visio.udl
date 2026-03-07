@@ -80,6 +80,7 @@ interface VisioEvent {
     ChatMessageReceived(ChatMessage message);
     HandRaisedChanged(string participant_sid, boolean raised, u32 position);
     UnreadCountChanged(u32 count);
+    ReactionReceived(string participant_sid, string participant_name, string emoji);
     ConnectionLost();
 };
 
@@ -168,6 +169,9 @@ interface VisioClient {
     void lower_hand();
 
     boolean is_hand_raised();
+
+    [Throws=VisioError]
+    void send_reaction(string emoji);
 
     void set_chat_open(boolean open);
 

@@ -278,6 +278,7 @@ pub enum VisioEvent {
     ChatMessageReceived { message: ChatMessage },
     HandRaisedChanged { participant_sid: String, raised: bool, position: u32 },
     UnreadCountChanged { count: u32 },
+    ReactionReceived { participant_sid: String, participant_name: String, emoji: String },
     ConnectionLost,
 }
 
@@ -319,6 +320,9 @@ impl From<CoreVisioEvent> for VisioEvent {
             }
             CoreVisioEvent::UnreadCountChanged(count) => {
                 Self::UnreadCountChanged { count }
+            }
+            CoreVisioEvent::ReactionReceived { participant_sid, participant_name, emoji } => {
+                Self::ReactionReceived { participant_sid, participant_name, emoji }
             }
             CoreVisioEvent::ConnectionLost => Self::ConnectionLost,
         }
@@ -655,6 +659,11 @@ impl VisioClient {
 
     pub fn is_hand_raised(&self) -> bool {
         self.rt.block_on(self.room_manager.is_hand_raised())
+    }
+
+    pub fn send_reaction(&self, emoji: String) -> Result<(), VisioError> {
+        self.rt.block_on(self.room_manager.send_reaction(&emoji))
+            .map_err(VisioError::from)
     }
 
     pub fn set_chat_open(&self, open: bool) {

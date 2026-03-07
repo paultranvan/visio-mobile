@@ -1,7 +1,7 @@
 use futures_util::StreamExt;
 use livekit::data_stream::StreamReader;
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
-use livekit::prelude::{RemoteParticipant, Room, RoomEvent, RoomOptions};
+use livekit::prelude::{DataPacket, RemoteParticipant, Room, RoomEvent, RoomOptions};
 use livekit::track::{RemoteVideoTrack, TrackKind as LkTrackKind, TrackSource as LkTrackSource};
 use livekit::webrtc::audio_stream::native::NativeAudioStream;
 use std::collections::HashMap;
@@ -309,6 +309,42 @@ impl RoomManager {
             .ok_or(VisioError::Room("not connected".into()))?
             .lower_hand()
             .await
+    }
+
+    /// Send an animated reaction visible to all participants.
+    ///
+    /// The payload matches the Meet web client protocol:
+    /// `{ "type": "reactionReceived", "data": { "emoji": "<id>" } }`
+    pub async fn send_reaction(&self, emoji: &str) -> Result<(), VisioError> {
+        let room = self.room.lock().await;
+        let room = room
+            .as_ref()
+            .ok_or_else(|| VisioError::Room("not connected".into()))?;
+
+        let payload = serde_json::json!({
+            "type": "reactionReceived",
+            "data": { "emoji": emoji }
+        });
+        let data = payload.to_string().into_bytes();
+
+        room.local_participant()
+            .publish_data(DataPacket {
+                payload: data,
+                reliable: true,
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| VisioError::Room(format!("send reaction: {e}")))?;
+
+        // Also emit locally so the sender sees their own reaction
+        let local = room.local_participant();
+        self.emitter.emit(VisioEvent::ReactionReceived {
+            participant_sid: local.sid().to_string(),
+            participant_name: local.name().to_string(),
+            emoji: emoji.to_string(),
+        });
+
+        Ok(())
     }
 
     /// Check if the local participant's hand is currently raised.
@@ -802,6 +838,25 @@ impl RoomManager {
                         "DataReceived: from={psid} topic={topic_str} kind={kind:?} len={}",
                         payload.len()
                     );
+
+                    // Handle reactions from Meet web client (no topic, reliable data)
+                    if let Ok(text) = std::str::from_utf8(&payload)
+                        && let Ok(json) = serde_json::from_str::<serde_json::Value>(text)
+                        && json["type"].as_str() == Some("reactionReceived")
+                    {
+                        if let Some(emoji) = json["data"]["emoji"].as_str() {
+                            let sender_name = participant
+                                .as_ref()
+                                .map(|p| p.name().to_string())
+                                .unwrap_or_default();
+                            emitter.emit(VisioEvent::ReactionReceived {
+                                participant_sid: psid.clone(),
+                                participant_name: sender_name,
+                                emoji: emoji.to_string(),
+                            });
+                        }
+                        continue;
+                    }
 
                     // Legacy fallback: chat messages via DataReceived with topic "lk-chat-topic"
                     // New clients send both Stream + legacy; "ignoreLegacy" flag means
