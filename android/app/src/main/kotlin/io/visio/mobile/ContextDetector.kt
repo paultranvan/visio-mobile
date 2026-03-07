@@ -33,7 +33,7 @@ class ContextDetector(private val context: Context) {
 
     private var lastReportedMotion = false
     private var lastSignificantMotionMs = 0L  // last time we saw a significant accel event
-    private val MOTION_THRESHOLD = 0.8f       // m/s² deviation from gravity to count as motion
+    private val MOTION_THRESHOLD = 1.5f       // m/s² deviation from gravity to count as motion
     private val MOTION_COOLDOWN_MS = 10000L   // stay in pedestrian 10s after last motion event
 
     companion object {
