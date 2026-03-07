@@ -41,6 +41,7 @@ class VisioManager: ObservableObject {
     @Published var authenticatedMeetInstance: String = ""
     @Published var backgroundMode: String = "off"
     @Published var reactions: [ReactionData] = []
+    @Published var adaptiveMode: AdaptiveMode = .office
 
     let authManager = OidcAuthManager()
 
@@ -49,6 +50,7 @@ class VisioManager: ObservableObject {
     let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var cameraCapture: CameraCapture?
+    private var contextDetector: ContextDetector?
     private var reactionIdCounter: Int64 = 0
 
     // MARK: - Init
@@ -136,6 +138,11 @@ class VisioManager: ObservableObject {
                         capture.start()
                         self.cameraCapture = capture
                     }
+
+                    // Start context detection for adaptive modes
+                    let detector = ContextDetector()
+                    detector.start()
+                    self.contextDetector = detector
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -149,6 +156,8 @@ class VisioManager: ObservableObject {
         stopAudioPlayout()
         cameraCapture?.stop()
         cameraCapture = nil
+        contextDetector?.stop()
+        contextDetector = nil
         // Stop all video renderers
         let sids = videoTrackSids
         for sid in sids {
@@ -642,6 +651,9 @@ extension VisioManager: VisioEventListener {
 
             case .lobbyDenied:
                 self.lobbyDenied = true
+
+            case .adaptiveModeChanged(let mode):
+                self.adaptiveMode = mode
 
             case .connectionLost:
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in
