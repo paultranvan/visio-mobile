@@ -1,4 +1,5 @@
 import SwiftUI
+import visioFFI
 
 struct HomeView: View {
     @EnvironmentObject private var manager: VisioManager
