@@ -15,9 +15,17 @@ struct HomeView: View {
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
     @State private var pendingOidcInstance: String? = nil
+    @State private var recentMeetings: [RecentMeeting] = []
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
+
+    private func formatRelativeTime(_ timestampMs: UInt64) -> String {
+        let date = Date(timeIntervalSince1970: Double(timestampMs) / 1000.0)
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
 
     private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
@@ -100,6 +108,32 @@ struct HomeView: View {
                         Text(Strings.t("home.room.notFound", lang: lang))
                             .font(.caption)
                             .foregroundStyle(.red)
+                    }
+
+                    if !recentMeetings.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(Strings.t("home.recent", lang: lang))
+                                .font(.caption)
+                                .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+
+                            ForEach(recentMeetings, id: \.slug) { meeting in
+                                Button {
+                                    roomURL = meeting.slug
+                                } label: {
+                                    HStack {
+                                        Text(meeting.slug)
+                                            .font(.body)
+                                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                                        Spacer()
+                                        Text(formatRelativeTime(meeting.timestampMs))
+                                            .font(.caption)
+                                            .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                    }
+                                    .padding(.vertical, 6)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
 
                     TextField(Strings.t("home.displayName", lang: lang), text: $displayName)
@@ -211,8 +245,9 @@ struct HomeView: View {
             if !name.isEmpty && displayName.isEmpty {
                 displayName = name
             }
-            // Load meet instances
+            // Load meet instances and recent meetings
             meetInstances = manager.client.getMeetInstances()
+            recentMeetings = manager.client.getRecentMeetings()
         }
         .onChange(of: manager.authenticatedDisplayName) { newValue in
             if !newValue.isEmpty && displayName.isEmpty {
