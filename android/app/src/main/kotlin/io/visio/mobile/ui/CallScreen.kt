@@ -153,8 +153,9 @@ fun CallScreen(
     LaunchedEffect(adaptiveMode) {
         if (adaptiveMode != lastMode) {
             lastMode = adaptiveMode
-            // Sync local cameraEnabled with actual Rust state
-            cameraEnabled = VisioManager.client.isCameraEnabled()
+            // Sync local cameraEnabled with actual Rust state (FFI call off main thread)
+            val camState = withContext(Dispatchers.IO) { VisioManager.client.isCameraEnabled() }
+            cameraEnabled = camState
         }
     }
 
@@ -394,28 +395,6 @@ fun CallScreen(
                         .fillMaxWidth()
                         .padding(8.dp),
             ) {
-                // Persistent adaptive mode indicator
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    val (modeIcon, modeKey) = when (adaptiveMode) {
-                        uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
-                        uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
-                        uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
-                    }
-                    Text(text = modeIcon, fontSize = 12.sp)
-                    Text(
-                        text = Strings.t(modeKey, lang),
-                        color = Color.White,
-                        fontSize = 11.sp
-                    )
-                }
                 val focusedP = focusedParticipantSid?.let { sid -> participants.find { it.sid == sid } }
 
                 if (focusedP != null) {
@@ -486,6 +465,29 @@ fun CallScreen(
 
                 // Reaction overlay on top of video grid
                 ReactionOverlay(reactions = reactions)
+
+                // Persistent adaptive mode indicator (on top of everything)
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val (modeIcon, modeKey) = when (adaptiveMode) {
+                        uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
+                        uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
+                        uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
+                    }
+                    Text(text = modeIcon, fontSize = 12.sp)
+                    Text(
+                        text = Strings.t(modeKey, lang),
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
