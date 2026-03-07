@@ -167,5 +167,6 @@
   "notification.channelName": "Aktiver Anruf",
   "notification.channelDescription": "Wird angezeigt, wenn ein Anruf läuft",
   "notification.title": "Visio Mobile",
-  "notification.text": "Anruf läuft"
+  "notification.text": "Anruf läuft",
+  "home.recent": "Zuletzt"
 }

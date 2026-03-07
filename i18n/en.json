@@ -167,5 +167,6 @@
   "restricted.member": "Member",
   "restricted.alreadyInvited": "Already invited",
   "restricted.searchUnavailable": "User search not available on this server",
-  "restricted.noResults": "No users found"
+  "restricted.noResults": "No users found",
+  "home.recent": "Recent"
 }
