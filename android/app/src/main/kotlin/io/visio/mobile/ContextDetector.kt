@@ -94,15 +94,26 @@ class ContextDetector(private val context: Context) {
         try { VisioManager.client.reportNetworkType(type) } catch (_: Exception) {}
     }
 
+    private var sensorEventCount = 0L
+
     private fun startMotionDetection() {
-        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return
+        val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (accelerometer == null) {
+            Log.w(TAG, "No accelerometer sensor available")
+            return
+        }
+        Log.d(TAG, "Accelerometer found: ${accelerometer.name}")
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
+                sensorEventCount++
                 val x = event.values[0]
                 val y = event.values[1]
                 val z = event.values[2]
                 val magnitude = kotlin.math.sqrt((x * x + y * y + z * z).toDouble()).toFloat()
                 val deviation = kotlin.math.abs(magnitude - SensorManager.GRAVITY_EARTH)
+                if (sensorEventCount % 100 == 0L) {
+                    Log.d(TAG, "Accel sample #$sensorEventCount: dev=${"%.2f".format(deviation)} count=$motionCount/$MOTION_COUNT_THRESHOLD")
+                }
 
                 val now = System.currentTimeMillis()
                 if (now - lastAccelTimestamp > MOTION_WINDOW_MS) {
