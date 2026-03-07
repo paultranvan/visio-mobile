@@ -268,7 +268,7 @@ function HomeView({
   onDeepLinkConsumed: () => void;
   isAuthenticated: boolean;
   displayNameFromOidc: string;
-  onLaunchOidc: () => void;
+  onLaunchOidc: (meetInstance: string) => void;
   onLogout: () => void;
 }) {
   const t = useT();
@@ -277,6 +277,8 @@ function HomeView({
   const [joining, setJoining] = useState(false);
   const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "error">("idle");
   const [meetInstances, setMeetInstances] = useState<string[]>([]);
+  const [showServerPicker, setShowServerPicker] = useState(false);
+  const [customServer, setCustomServer] = useState("");
 
   useEffect(() => {
     invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
@@ -363,9 +365,62 @@ function HomeView({
           </div>
         ) : (
           <div className="auth-status">
-            <button className="btn btn-secondary" onClick={onLaunchOidc}>
+            <button className="btn btn-secondary" onClick={() => {
+              if (meetInstances.length <= 1) {
+                if (meetInstances.length > 0) onLaunchOidc(meetInstances[0]);
+              } else {
+                setCustomServer("");
+                setShowServerPicker(true);
+              }
+            }}>
               {t("home.connect")}
             </button>
+            {showServerPicker && (
+              <div className="server-picker-overlay" onClick={() => setShowServerPicker(false)}>
+                <div className="server-picker" onClick={(e) => e.stopPropagation()}>
+                  <h3>{t("home.serverPicker.title")}</h3>
+                  <div className="server-list">
+                    {meetInstances.map((instance) => (
+                      <button key={instance} className="server-item" onClick={() => {
+                        setShowServerPicker(false);
+                        onLaunchOidc(instance);
+                      }}>
+                        {instance}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="server-custom">
+                    <input
+                      type="text"
+                      placeholder="meet.example.com"
+                      value={customServer}
+                      onChange={(e) => setCustomServer(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customServer.trim()) {
+                          setShowServerPicker(false);
+                          onLaunchOidc(customServer.trim());
+                        }
+                      }}
+                    />
+                    <button
+                      className="btn btn-secondary"
+                      disabled={!customServer.trim()}
+                      onClick={() => {
+                        if (customServer.trim()) {
+                          setShowServerPicker(false);
+                          onLaunchOidc(customServer.trim());
+                        }
+                      }}
+                    >
+                      {t("home.connect")}
+                    </button>
+                  </div>
+                  <button className="btn btn-cancel" onClick={() => setShowServerPicker(false)}>
+                    {t("home.serverPicker.cancel")}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         <div className="form-group">
@@ -1469,10 +1524,8 @@ export default function App() {
               onDeepLinkConsumed={() => setDeepLinkUrl(null)}
               isAuthenticated={isAuthenticated}
               displayNameFromOidc={displayNameFromOidc}
-              onLaunchOidc={() => {
-                if (meetInstances.length > 0) {
-                  invoke("launch_oidc", { meetInstance: meetInstances[0] });
-                }
+              onLaunchOidc={(meetInstance: string) => {
+                invoke("launch_oidc", { meetInstance });
               }}
               onLogout={() => {
                 if (meetInstances.length > 0) {

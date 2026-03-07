@@ -9,6 +9,8 @@ struct HomeView: View {
     @State private var showSettings: Bool = false
     @State private var roomStatus: String = "idle"
     @State private var meetInstances: [String] = []
+    @State private var showServerPicker: Bool = false
+    @State private var customServer: String = ""
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -66,11 +68,12 @@ struct HomeView: View {
                     }
                 } else {
                     Button(action: {
-                        guard let meetInstance = meetInstances.first else { return }
-                        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { cookie in
-                            if let cookie = cookie {
-                                manager.onAuthCookieReceived(cookie)
-                            }
+                        if meetInstances.count <= 1 {
+                            guard let meetInstance = meetInstances.first else { return }
+                            launchOidc(meetInstance: meetInstance)
+                        } else {
+                            customServer = ""
+                            showServerPicker = true
                         }
                     }) {
                         Label(Strings.t("home.connect", lang: lang), systemImage: "person.circle")
@@ -191,6 +194,72 @@ struct HomeView: View {
             if let link = newValue {
                 roomURL = link
                 manager.pendingDeepLink = nil
+            }
+        }
+        .sheet(isPresented: $showServerPicker) {
+            ServerPickerView(
+                instances: meetInstances,
+                customServer: $customServer,
+                lang: lang,
+                onSelect: { instance in
+                    showServerPicker = false
+                    launchOidc(meetInstance: instance)
+                },
+                onDismiss: { showServerPicker = false }
+            )
+        }
+    }
+
+    private func launchOidc(meetInstance: String) {
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { cookie in
+            if let cookie = cookie {
+                manager.onAuthCookieReceived(cookie)
+            }
+        }
+    }
+}
+
+// MARK: - Server Picker
+
+private struct ServerPickerView: View {
+    let instances: [String]
+    @Binding var customServer: String
+    let lang: String
+    let onSelect: (String) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(instances, id: \.self) { instance in
+                        Button(instance) {
+                            onSelect(instance)
+                        }
+                    }
+                }
+                Section {
+                    TextField(Strings.t("home.serverPicker.custom", lang: lang), text: $customServer)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                    Button(Strings.t("home.connect", lang: lang)) {
+                        let trimmed = customServer.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            onSelect(trimmed)
+                        }
+                    }
+                    .disabled(customServer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .navigationTitle(Strings.t("home.serverPicker.title", lang: lang))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(Strings.t("home.serverPicker.cancel", lang: lang)) {
+                        onDismiss()
+                    }
+                }
             }
         }
     }

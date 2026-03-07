@@ -212,6 +212,80 @@ main {
   min-height: 1.2em;
 }
 
+/* -- Server Picker --------------------------------------------------------- */
+
+.server-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.server-picker {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 320px;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.server-picker h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.server-item {
+  background: none;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--primary, #3232FF);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.server-item:hover {
+  background: var(--surface-hover, rgba(50, 50, 255, 0.1));
+}
+
+.server-custom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.server-custom input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #333);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.btn-cancel {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  font-size: 0.9rem;
+}
+
 /* -- Settings gear --------------------------------------------------------- */
 
 .settings-gear {
