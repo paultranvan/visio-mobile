@@ -10,6 +10,7 @@ pub mod controls;
 pub mod errors;
 pub mod events;
 pub mod hand_raise;
+pub mod lobby;
 pub mod participants;
 pub mod room;
 pub mod session;
@@ -25,6 +26,7 @@ pub use events::{
     TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 pub use hand_raise::HandRaiseManager;
+pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
 pub use session::{CreateRoomLiveKit, CreateRoomResponse, SessionManager, SessionState, UserInfo};

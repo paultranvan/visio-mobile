@@ -134,7 +134,7 @@ impl AuthService {
     }
 
     /// Parse a Meet URL into (instance, room_slug).
-    fn parse_meet_url(url: &str) -> Result<(String, String), VisioError> {
+    pub fn parse_meet_url(url: &str) -> Result<(String, String), VisioError> {
         let url = url
             .trim()
             .trim_end_matches('/')
