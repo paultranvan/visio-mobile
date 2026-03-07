@@ -106,6 +106,16 @@ fun HomeScreen(
     var showServerPicker by remember { mutableStateOf(false) }
     var showCreateRoom by remember { mutableStateOf(false) }
     var customServer by remember { mutableStateOf("") }
+    var recentMeetings by remember { mutableStateOf(listOf<uniffi.visio.RecentMeeting>()) }
+
+    // Load recent meetings from settings
+    LaunchedEffect(Unit) {
+        try {
+            recentMeetings = VisioManager.client.getRecentMeetings()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load recent meetings", e)
+        }
+    }
 
     LaunchedEffect(VisioManager.pendingDeepLink) {
         val link = VisioManager.pendingDeepLink
@@ -353,6 +363,39 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
+        }
+
+        if (recentMeetings.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = Strings.t("home.recent", lang),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            recentMeetings.forEach { meeting ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { roomUrl = meeting.slug }
+                            .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = meeting.slug,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = formatRelativeTime(meeting.timestampMs),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -887,4 +930,22 @@ private fun ServerPickerDialog(
             }
         },
     )
+}
+
+private fun formatRelativeTime(timestampMs: ULong): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestampMs.toLong()
+    val minutes = diff / 60_000
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        hours < 24 -> "${hours}h ago"
+        days < 7 -> "${days}d ago"
+        else -> {
+            val sdf = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestampMs.toLong()))
+        }
+    }
 }
