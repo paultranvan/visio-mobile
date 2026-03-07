@@ -1723,6 +1723,44 @@ main {
   background: var(--bg-tertiary);
 }
 
+
+/* -- Recent Meetings ------------------------------------------------------- */
+
+.recent-meetings {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.recent-meetings label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.recent-meeting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.recent-meeting-row:hover {
+  background: var(--surface-hover, rgba(128, 128, 128, 0.1));
+}
+
+.recent-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 /* -- Overflow Menu --------------------------------------------------------- */
 
 .overflow-menu {

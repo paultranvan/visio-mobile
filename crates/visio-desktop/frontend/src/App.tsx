@@ -120,6 +120,18 @@ function extractSlug(input: string): string | null {
   return SLUG_REGEX.test(candidate) ? candidate : null;
 }
 
+function formatRelativeTime(timestampMs: number): string {
+  const diff = Date.now() - timestampMs;
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return new Date(timestampMs).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 function detectSystemLang(): string {
   const navLang = navigator.language?.split("-")[0];
   return SUPPORTED_LANGS.includes(navLang) ? navLang : "en";
@@ -310,9 +322,13 @@ function HomeView({
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [customServer, setCustomServer] = useState("");
   const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [recentMeetings, setRecentMeetings] = useState<{slug: string, server: string, timestamp_ms: number}[]>([]);
 
   useEffect(() => {
     invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
+    invoke<{slug: string, server: string, timestamp_ms: number}[]>("get_recent_meetings")
+      .then(setRecentMeetings)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -521,6 +537,21 @@ function HomeView({
           {roomStatus === "authenticating" && <div className="room-status checking">{t("home.room.authenticating")}</div>}
           {roomStatus === "error" && <div className="room-status error">{t("home.room.error")}</div>}
         </div>
+        {recentMeetings.length > 0 && (
+          <div className="recent-meetings">
+            <label>{t("home.recent")}</label>
+            {recentMeetings.map((m) => (
+              <button
+                key={m.slug + m.server}
+                className="recent-meeting-row"
+                onClick={() => setMeetUrl(m.slug)}
+              >
+                <span className="recent-slug">{m.slug}</span>
+                <span className="recent-time">{formatRelativeTime(m.timestamp_ms)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="username">{t("home.displayName")}</label>
           <input
