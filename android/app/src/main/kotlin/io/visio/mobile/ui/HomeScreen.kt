@@ -40,6 +40,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
@@ -57,6 +61,16 @@ fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
+    val oidcLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val cookie = result.data?.getStringExtra("sessionid")
+            if (cookie != null) {
+                VisioManager.onAuthCookieReceived(cookie)
+            }
+        }
+    }
     var roomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     val lang = VisioManager.currentLang
@@ -196,7 +210,8 @@ fun HomeScreen(
                 onClick = {
                     val meetInstance = meetInstances.firstOrNull() ?: return@Button
                     VisioManager.authManager.launchOidcFlow(
-                        context as android.app.Activity,
+                        oidcLauncher,
+                        context,
                         meetInstance,
                     )
                 },

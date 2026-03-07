@@ -710,7 +710,7 @@ impl VisioClient {
         match session.state() {
             visio_core::SessionState::Anonymous => SessionState::Anonymous,
             visio_core::SessionState::Authenticated { user, .. } => SessionState::Authenticated {
-                display_name: user.display_name.clone(),
+                display_name: user.display_name(),
                 email: user.email.clone(),
             },
         }

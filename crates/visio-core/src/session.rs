@@ -7,7 +7,22 @@ use crate::errors::VisioError;
 pub struct UserInfo {
     pub id: String,
     pub email: String,
-    pub display_name: String,
+    #[serde(default)]
+    pub full_name: Option<String>,
+    #[serde(default)]
+    pub short_name: Option<String>,
+}
+
+impl UserInfo {
+    /// Best available display name: full_name, short_name, or email prefix.
+    pub fn display_name(&self) -> String {
+        self.full_name
+            .as_deref()
+            .or(self.short_name.as_deref())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| self.email.split('@').next().unwrap_or(&self.email))
+            .to_string()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -146,12 +161,13 @@ mod tests {
         let user = UserInfo {
             id: "123".to_string(),
             email: "test@example.com".to_string(),
-            display_name: "Test User".to_string(),
+            full_name: Some("Test User".to_string()),
+            short_name: None,
         };
         session.set_authenticated(user.clone(), "abc123".to_string());
         match session.state() {
             SessionState::Authenticated { user: u, .. } => {
-                assert_eq!(u.display_name, "Test User");
+                assert_eq!(u.display_name(), "Test User");
             }
             _ => panic!("Expected Authenticated state"),
         }
@@ -163,7 +179,8 @@ mod tests {
         let user = UserInfo {
             id: "123".to_string(),
             email: "test@example.com".to_string(),
-            display_name: "Test".to_string(),
+            full_name: Some("Test".to_string()),
+            short_name: None,
         };
         session.set_authenticated(user, "abc123".to_string());
         session.clear();
@@ -182,7 +199,8 @@ mod tests {
         let user = UserInfo {
             id: "1".to_string(),
             email: "a@b.com".to_string(),
-            display_name: "A".to_string(),
+            full_name: Some("A".to_string()),
+            short_name: None,
         };
         session.set_authenticated(user, "mycookie".to_string());
         assert_eq!(session.cookie(), Some("mycookie".to_string()));

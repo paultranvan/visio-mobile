@@ -649,7 +649,7 @@ async fn authenticate(
     let mut session = state.session.lock().await;
     session.set_authenticated(user.clone(), cookie);
     Ok(serde_json::json!({
-        "display_name": user.display_name,
+        "display_name": user.display_name(),
         "email": user.email,
     }))
 }
@@ -673,7 +673,7 @@ async fn get_session_state(
         SessionState::Anonymous => Ok(serde_json::json!({ "state": "anonymous" })),
         SessionState::Authenticated { user, .. } => Ok(serde_json::json!({
             "state": "authenticated",
-            "display_name": user.display_name,
+            "display_name": user.display_name(),
             "email": user.email,
         })),
     }

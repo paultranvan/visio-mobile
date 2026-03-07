@@ -175,6 +175,7 @@ object VisioManager : VisioEventListener {
                     updateSessionFromState(state)
                 }
             } catch (e: Exception) {
+                Log.e("VisioManager", "Authentication failed", e)
                 authManager.clearCookie()
             }
         }
@@ -187,7 +188,9 @@ object VisioManager : VisioEventListener {
                 client.logout("https://$meetInstance")
             } catch (_: Exception) {}
             authManager.clearCookie()
+            // Clear WebView cookies so SSO session doesn't auto-reconnect
             withContext(Dispatchers.Main) {
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
                 isAuthenticated = false
                 authenticatedDisplayName = ""
                 authenticatedEmail = ""

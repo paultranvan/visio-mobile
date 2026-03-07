@@ -26,7 +26,7 @@ pub struct Settings {
 }
 
 fn default_meet_instances() -> Vec<String> {
-    vec!["meet.numerique.gouv.fr".to_string()]
+    vec!["meet.linagora.com".to_string(), "meet.numerique.gouv.fr".to_string()]
 }
 
 fn default_theme() -> String {
@@ -255,7 +255,7 @@ mod tests {
     #[test]
     fn test_default_meet_instances() {
         let s = Settings::default();
-        assert_eq!(s.meet_instances, vec!["meet.numerique.gouv.fr".to_string()]);
+        assert_eq!(s.meet_instances, vec!["meet.linagora.com".to_string(), "meet.numerique.gouv.fr".to_string()]);
     }
 
     #[test]
@@ -316,7 +316,7 @@ mod tests {
         let store = SettingsStore::new(path);
         assert_eq!(
             store.get().meet_instances,
-            vec!["meet.numerique.gouv.fr".to_string()]
+            vec!["meet.linagora.com".to_string(), "meet.numerique.gouv.fr".to_string()]
         );
     }
 }
