@@ -19,6 +19,7 @@ struct CallView: View {
     // lobbyNotificationDismissTask removed — banner is now persistent while participants wait
     @State private var showOverflow: Bool = false
     @State private var showReactionPicker: Bool = false
+    @State private var showModeBanner = false
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -42,6 +43,21 @@ struct CallView: View {
                         .padding(8)
                         .frame(maxWidth: .infinity)
                         .background(VisioColors.error500)
+                }
+
+                // Adaptive mode banner
+                if showModeBanner {
+                    HStack(spacing: 6) {
+                        Image(systemName: modeIcon(manager.adaptiveMode))
+                        Text(modeLabel(manager.adaptiveMode))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(16)
+                    .foregroundColor(.white)
+                    .font(.caption)
+                    .transition(.opacity)
                 }
 
                 // Main content area: video grid, waiting for host, or waiting for participants
@@ -159,6 +175,30 @@ struct CallView: View {
             }
         }
         // Lobby banner is now persistent — driven by waitingParticipants list
+        .onChange(of: manager.adaptiveMode) { _ in
+            showModeBanner = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation { showModeBanner = false }
+            }
+        }
+    }
+
+    // MARK: - Adaptive Mode Helpers
+
+    private func modeIcon(_ mode: AdaptiveMode) -> String {
+        switch mode {
+        case .office: return "wifi"
+        case .pedestrian: return "figure.walk"
+        case .car: return "car.fill"
+        }
+    }
+
+    private func modeLabel(_ mode: AdaptiveMode) -> String {
+        switch mode {
+        case .office: return Strings.t("adaptive.office", lang: lang)
+        case .pedestrian: return Strings.t("adaptive.pedestrian", lang: lang)
+        case .car: return Strings.t("adaptive.car", lang: lang)
+        }
     }
 
     // MARK: - Grid Layout

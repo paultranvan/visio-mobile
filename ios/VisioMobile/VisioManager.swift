@@ -654,6 +654,9 @@ extension VisioManager: VisioEventListener {
 
             case .adaptiveModeChanged(let mode):
                 self.adaptiveMode = mode
+                if mode == .car && self.isCameraEnabled {
+                    self.toggleCamera()
+                }
 
             case .connectionLost:
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in
