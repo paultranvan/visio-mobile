@@ -269,6 +269,15 @@ pub enum SessionState {
 }
 
 #[derive(Debug, Clone)]
+pub struct CreateRoomResult {
+    pub slug: String,
+    pub name: String,
+    pub access_level: String,
+    pub livekit_url: String,
+    pub livekit_token: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum VisioEvent {
     ConnectionStateChanged { state: ConnectionState },
     ParticipantJoined { info: ParticipantInfo },
@@ -354,6 +363,7 @@ impl From<visio_core::VisioError> for VisioError {
             visio_core::VisioError::Connection(msg) => Self::Connection { msg },
             visio_core::VisioError::Room(msg) => Self::Room { msg },
             visio_core::VisioError::Auth(msg) => Self::Auth { msg },
+            visio_core::VisioError::AuthRequired => Self::Auth { msg: "authentication required".to_string() },
             visio_core::VisioError::Http(msg) => Self::Http { msg },
             visio_core::VisioError::InvalidUrl(msg) => Self::InvalidUrl { msg },
             visio_core::VisioError::Session(msg) => Self::Session { msg },
@@ -727,6 +737,45 @@ impl VisioClient {
     pub fn validate_session(&self, meet_url: String) -> Result<bool, VisioError> {
         let mut session = self.session_manager.lock().unwrap();
         self.rt.block_on(session.validate_session(&meet_url)).map_err(VisioError::from)
+    }
+
+    /// Create a new room via the Meet backend API
+    pub fn create_room(
+        &self,
+        meet_url: String,
+        name: String,
+        access_level: String,
+    ) -> Result<CreateRoomResult, VisioError> {
+        let cookie = {
+            let session = self.session_manager.lock().unwrap();
+            session.cookie().ok_or_else(|| {
+                VisioError::Session { msg: "Not authenticated".to_string() }
+            })?
+        };
+
+        let result = self
+            .rt
+            .block_on(visio_core::SessionManager::create_room(
+                &meet_url,
+                &cookie,
+                &name,
+                &access_level,
+            ))
+            .map_err(VisioError::from)?;
+
+        let livekit_url = result
+            .livekit
+            .url
+            .replace("https://", "wss://")
+            .replace("http://", "ws://");
+
+        Ok(CreateRoomResult {
+            slug: result.slug,
+            name: result.name,
+            access_level: result.access_level,
+            livekit_url,
+            livekit_token: result.livekit.token,
+        })
     }
 
     pub fn start_video_renderer(&self, track_sid: String) {

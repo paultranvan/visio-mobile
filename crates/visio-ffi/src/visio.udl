@@ -111,6 +111,14 @@ interface SessionState {
     Authenticated(string display_name, string email);
 };
 
+dictionary CreateRoomResult {
+    string slug;
+    string name;
+    string access_level;
+    string livekit_url;
+    string livekit_token;
+};
+
 interface VisioClient {
     constructor(string data_dir);
 
@@ -191,6 +199,9 @@ interface VisioClient {
 
     [Throws=VisioError]
     boolean validate_session(string meet_url);
+
+    [Throws=VisioError]
+    CreateRoomResult create_room(string meet_url, string name, string access_level);
 
     void start_video_renderer(string track_sid);
 
