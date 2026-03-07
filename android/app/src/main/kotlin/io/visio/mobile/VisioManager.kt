@@ -107,6 +107,9 @@ object VisioManager : VisioEventListener {
     // Context detector for adaptive modes
     private var contextDetector: ContextDetector? = null
 
+    // Track whether camera was on before CAR mode forced it off
+    private var cameraWasEnabledBeforeCar = false
+
     // Deep link: pre-fill room URL on HomeScreen
     var pendingDeepLink: String? by mutableStateOf(null)
 
@@ -638,14 +641,26 @@ object VisioManager : VisioEventListener {
                 }
             }
             is VisioEvent.AdaptiveModeChanged -> {
+                val previousMode = _adaptiveMode.value
                 _adaptiveMode.value = event.mode
-                Log.d("VISIO", "Adaptive mode changed: ${event.mode}")
+                Log.d("VISIO", "Adaptive mode changed: $previousMode -> ${event.mode}")
                 if (event.mode == uniffi.visio.AdaptiveMode.CAR) {
                     scope.launch(Dispatchers.IO) {
-                        if (client.isCameraEnabled()) {
+                        cameraWasEnabledBeforeCar = client.isCameraEnabled()
+                        if (cameraWasEnabledBeforeCar) {
                             stopCameraCapture()
                             client.setCameraEnabled(false)
                         }
+                    }
+                } else if (previousMode == uniffi.visio.AdaptiveMode.CAR && cameraWasEnabledBeforeCar) {
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            client.setCameraEnabled(true)
+                            startCameraCapture()
+                        } catch (e: Exception) {
+                            Log.e("VISIO", "Failed to restore camera after car mode", e)
+                        }
+                        cameraWasEnabledBeforeCar = false
                     }
                 }
             }

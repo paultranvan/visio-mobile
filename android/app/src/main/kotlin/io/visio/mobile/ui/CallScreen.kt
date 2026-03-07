@@ -148,15 +148,13 @@ fun CallScreen(
     var showReactionPicker by remember { mutableStateOf(false) }
     val reactions by VisioManager.reactions.collectAsState()
 
-    var showModeBanner by remember { mutableStateOf(false) }
     var lastMode by remember { mutableStateOf(adaptiveMode) }
 
     LaunchedEffect(adaptiveMode) {
         if (adaptiveMode != lastMode) {
             lastMode = adaptiveMode
-            showModeBanner = true
-            delay(3000)
-            showModeBanner = false
+            // Sync local cameraEnabled with actual Rust state
+            cameraEnabled = VisioManager.client.isCameraEnabled()
         }
     }
 
@@ -396,28 +394,27 @@ fun CallScreen(
                         .fillMaxWidth()
                         .padding(8.dp),
             ) {
-                // Adaptive mode indicator banner
-                if (showModeBanner) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(8.dp)
-                            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val modeKey = when (adaptiveMode) {
-                            uniffi.visio.AdaptiveMode.OFFICE -> "adaptive.office"
-                            uniffi.visio.AdaptiveMode.PEDESTRIAN -> "adaptive.pedestrian"
-                            uniffi.visio.AdaptiveMode.CAR -> "adaptive.car"
-                        }
-                        Text(
-                            text = Strings.t(modeKey, lang),
-                            color = Color.White,
-                            fontSize = 12.sp
-                        )
+                // Persistent adaptive mode indicator
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val (modeIcon, modeKey) = when (adaptiveMode) {
+                        uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
+                        uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
+                        uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
                     }
+                    Text(text = modeIcon, fontSize = 12.sp)
+                    Text(
+                        text = Strings.t(modeKey, lang),
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
                 }
                 val focusedP = focusedParticipantSid?.let { sid -> participants.find { it.sid == sid } }
 

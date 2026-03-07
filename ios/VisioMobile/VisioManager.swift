@@ -52,6 +52,7 @@ class VisioManager: ObservableObject {
     private var cameraCapture: CameraCapture?
     private var contextDetector: ContextDetector?
     private var reactionIdCounter: Int64 = 0
+    private var cameraWasEnabledBeforeCar = false
 
     // MARK: - Init
 
@@ -653,9 +654,18 @@ extension VisioManager: VisioEventListener {
                 self.lobbyDenied = true
 
             case .adaptiveModeChanged(let mode):
+                let previousMode = self.adaptiveMode
                 self.adaptiveMode = mode
-                if mode == .car && self.isCameraEnabled {
-                    self.toggleCamera()
+                if mode == .car {
+                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                    if self.isCameraEnabled {
+                        self.toggleCamera()
+                    }
+                } else if previousMode == .car && self.cameraWasEnabledBeforeCar {
+                    self.cameraWasEnabledBeforeCar = false
+                    if !self.isCameraEnabled {
+                        self.toggleCamera()
+                    }
                 }
 
             case .connectionLost:

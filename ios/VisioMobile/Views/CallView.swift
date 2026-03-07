@@ -19,7 +19,6 @@ struct CallView: View {
     // lobbyNotificationDismissTask removed — banner is now persistent while participants wait
     @State private var showOverflow: Bool = false
     @State private var showReactionPicker: Bool = false
-    @State private var showModeBanner = false
     @State private var adaptiveModeOverride: AdaptiveMode? = nil
 
     private var lang: String { manager.currentLang }
@@ -44,21 +43,6 @@ struct CallView: View {
                         .padding(8)
                         .frame(maxWidth: .infinity)
                         .background(VisioColors.error500)
-                }
-
-                // Adaptive mode banner
-                if showModeBanner {
-                    HStack(spacing: 6) {
-                        Image(systemName: modeIcon(manager.adaptiveMode))
-                        Text(modeLabel(manager.adaptiveMode))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.black.opacity(0.7))
-                    .cornerRadius(16)
-                    .foregroundColor(.white)
-                    .font(.caption)
-                    .transition(.opacity)
                 }
 
                 // Main content area: video grid, waiting for host, or waiting for participants
@@ -108,6 +92,25 @@ struct CallView: View {
 
                     // Reaction overlay
                     ReactionOverlay(reactions: manager.reactions)
+
+                    // Persistent adaptive mode indicator
+                    VStack {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 4) {
+                                Image(systemName: modeIcon(manager.adaptiveMode))
+                                Text(modeLabel(manager.adaptiveMode))
+                            }
+                            .font(.caption2)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(12)
+                            .padding(8)
+                        }
+                        Spacer()
+                    }
                 }
 
                 // Control bar (hidden when waiting for host)
@@ -176,12 +179,6 @@ struct CallView: View {
             }
         }
         // Lobby banner is now persistent — driven by waitingParticipants list
-        .onChange(of: manager.adaptiveMode) { _ in
-            showModeBanner = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                withAnimation { showModeBanner = false }
-            }
-        }
     }
 
     // MARK: - Adaptive Mode Helpers
