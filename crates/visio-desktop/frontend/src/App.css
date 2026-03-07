@@ -1064,6 +1064,48 @@ main {
   flex-shrink: 0;
 }
 
+.info-link-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
+.info-link-header span {
+  flex: 1;
+}
+.info-link-input {
+  width: 100%;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  cursor: text;
+  box-sizing: border-box;
+}
+.info-link-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.info-copy-icon {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+.info-copy-icon:hover {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
 .info-transcribe-btn {
   display: flex;
   align-items: center;

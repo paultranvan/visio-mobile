@@ -259,6 +259,7 @@ function HomeView({
   deepLinkUrl,
   onDeepLinkConsumed,
   isAuthenticated,
+  authenticatedMeetInstance,
   displayNameFromOidc,
   emailFromOidc,
   onLaunchOidc,
@@ -271,6 +272,7 @@ function HomeView({
   deepLinkUrl: string | null;
   onDeepLinkConsumed: () => void;
   isAuthenticated: boolean;
+  authenticatedMeetInstance: string;
   displayNameFromOidc: string;
   emailFromOidc: string;
   onLaunchOidc: (meetInstance: string) => void;
@@ -498,7 +500,7 @@ function HomeView({
         <button className="btn btn-primary" disabled={joining || roomStatus !== "valid"} onClick={handleJoin}>
           {joining ? t("home.connecting") : t("home.join")}
         </button>
-        {isAuthenticated && meetInstances.length > 0 && (
+        {isAuthenticated && authenticatedMeetInstance && (
           <button
             className="btn btn-primary"
             style={{ marginTop: "8px", background: "var(--bg-tertiary)", color: "var(--text)" }}
@@ -509,9 +511,9 @@ function HomeView({
         )}
         <div className="error-msg">{error}</div>
       </div>
-      {showCreateRoom && (
+      {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
-          meetInstances={meetInstances}
+          meetInstance={authenticatedMeetInstance}
           onCreated={async (createdUrl) => {
             setShowCreateRoom(false);
             const uname = displayName.trim() || null;
@@ -533,36 +535,48 @@ function HomeView({
 // -- Create Room Dialog -----------------------------------------------------
 
 function CreateRoomDialog({
-  meetInstances,
+  meetInstance,
   onCreated,
   onCancel,
 }: {
-  meetInstances: string[];
+  meetInstance: string;
   onCreated: (meetUrl: string) => void;
   onCancel: () => void;
 }) {
   const t = useT();
-  const [roomName, setRoomName] = useState("");
   const [accessLevel, setAccessLevel] = useState<"public" | "trusted">("public");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [createdUrl, setCreatedUrl] = useState("");
+  const [copiedHttp, setCopiedHttp] = useState(false);
+  const [copiedDeep, setCopiedDeep] = useState(false);
+
+  const deepLink = createdUrl ? `visio://${createdUrl.replace(/^https?:\/\//, "")}` : "";
 
   const handleCreate = async () => {
-    if (!roomName.trim()) return;
     setCreating(true);
     setError("");
-    const meetUrl = `https://${meetInstances[0]}`;
+    const meetUrl = `https://${meetInstance}`;
     try {
       const result = await invoke<{ slug: string }>("create_room", {
         meetUrl,
-        name: roomName.trim(),
+        name: "",
         accessLevel,
       });
-      onCreated(`${meetUrl}/${result.slug}`);
+      setCreatedUrl(`${meetUrl}/${result.slug}`);
     } catch (e) {
       setError(t("home.createRoom.error") + ": " + String(e));
+    } finally {
       setCreating(false);
     }
+  };
+
+  const handleCopy = async (text: string, setFn: (v: boolean) => void) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setFn(true);
+      setTimeout(() => setFn(false), 2000);
+    } catch { /* ignore */ }
   };
 
   return (
@@ -575,63 +589,80 @@ function CreateRoomDialog({
           </button>
         </div>
         <div className="settings-body">
-          <div className="form-field">
-            <label>{t("home.createRoom.name")}</label>
-            <input
-              className="settings-input"
-              type="text"
-              maxLength={500}
-              placeholder={t("home.createRoom.namePlaceholder")}
-              value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-              autoFocus
-            />
-          </div>
-          <div className="form-field">
-            <label>{t("home.createRoom.access")}</label>
-            <div className="access-level-options">
-              <label
-                className={`access-option ${accessLevel === "public" ? "selected" : ""}`}
-                onClick={() => setAccessLevel("public")}
-              >
-                <input
-                  type="radio"
-                  name="accessLevel"
-                  value="public"
-                  checked={accessLevel === "public"}
-                  onChange={() => setAccessLevel("public")}
-                />
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.public")}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.publicDesc")}</div>
+          {!createdUrl ? (
+            <>
+              <div className="form-field">
+                <label>{t("home.createRoom.access")}</label>
+                <div className="access-level-options">
+                  <label
+                    className={`access-option ${accessLevel === "public" ? "selected" : ""}`}
+                    onClick={() => setAccessLevel("public")}
+                  >
+                    <input
+                      type="radio"
+                      name="accessLevel"
+                      value="public"
+                      checked={accessLevel === "public"}
+                      onChange={() => setAccessLevel("public")}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.public")}</div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.publicDesc")}</div>
+                    </div>
+                  </label>
+                  <label
+                    className={`access-option ${accessLevel === "trusted" ? "selected" : ""}`}
+                    onClick={() => setAccessLevel("trusted")}
+                  >
+                    <input
+                      type="radio"
+                      name="accessLevel"
+                      value="trusted"
+                      checked={accessLevel === "trusted"}
+                      onChange={() => setAccessLevel("trusted")}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.trusted")}</div>
+                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.trustedDesc")}</div>
+                    </div>
+                  </label>
                 </div>
-              </label>
-              <label
-                className={`access-option ${accessLevel === "trusted" ? "selected" : ""}`}
-                onClick={() => setAccessLevel("trusted")}
-              >
-                <input
-                  type="radio"
-                  name="accessLevel"
-                  value="trusted"
-                  checked={accessLevel === "trusted"}
-                  onChange={() => setAccessLevel("trusted")}
-                />
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.trusted")}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.trustedDesc")}</div>
-                </div>
-              </label>
+              </div>
+              {error && <div className="create-room-error">{error}</div>}
+            </>
+          ) : (
+            <div className="form-field" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label>{t("settings.incall.roomInfo")}</label>
+              <div className="info-link-header">
+                <RiGlobalLine size={16} />
+                <span>{t("settings.incall.roomLink")}</span>
+                <button className="info-copy-icon" onClick={() => handleCopy(createdUrl, setCopiedHttp)} title={t("settings.incall.copied")}>
+                  {copiedHttp ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                </button>
+              </div>
+              <input className="info-link-input" readOnly value={createdUrl} onClick={e => (e.target as HTMLInputElement).select()} />
+              <div className="info-link-header">
+                <RiSmartphoneLine size={16} />
+                <span>{t("settings.incall.deepLink")}</span>
+                <button className="info-copy-icon" onClick={() => handleCopy(deepLink, setCopiedDeep)} title={t("settings.incall.copied")}>
+                  {copiedDeep ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                </button>
+              </div>
+              <input className="info-link-input" readOnly value={deepLink} onClick={e => (e.target as HTMLInputElement).select()} />
             </div>
-          </div>
-          {error && <div className="create-room-error">{error}</div>}
+          )}
         </div>
         <div style={{ display: "flex", gap: "8px", padding: "0 20px 20px", justifyContent: "flex-end" }}>
           <button className="btn btn-cancel" onClick={onCancel}>{t("home.serverPicker.cancel")}</button>
-          <button className="btn btn-primary" style={{ width: "auto" }} disabled={creating || !roomName.trim()} onClick={handleCreate}>
-            {creating ? t("home.createRoom.creating") : t("home.createRoom.create")}
-          </button>
+          {!createdUrl ? (
+            <button className="btn btn-primary" style={{ width: "auto" }} disabled={creating} onClick={handleCreate}>
+              {creating ? t("home.createRoom.creating") : t("home.createRoom.create")}
+            </button>
+          ) : (
+            <button className="btn btn-primary" style={{ width: "auto" }} onClick={() => onCreated(createdUrl)}>
+              {t("home.join")}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -673,26 +704,24 @@ function InfoSidebar({ meetUrl, onClose }: { meetUrl: string; onClose: () => voi
       </div>
       <div className="info-body">
         <div className="info-section">
-          <div className="info-section-title">{t("settings.incall.roomLink")}</div>
-          <div className="info-link-row">
-            <RiGlobalLine size={18} />
-            <span className="info-url">{displayUrl}</span>
-            <button className="info-copy-btn info-copy-btn-inline" onClick={handleCopyHttp}>
+          <div className="info-link-header">
+            <RiGlobalLine size={16} />
+            <span>{t("settings.incall.roomLink")}</span>
+            <button className="info-copy-icon" onClick={handleCopyHttp} title={t("settings.incall.copied")}>
               {copiedHttp ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
-              {copiedHttp ? t("settings.incall.copied") : t("info.copy")}
             </button>
           </div>
+          <input className="info-link-input" readOnly value={meetUrl} onClick={e => (e.target as HTMLInputElement).select()} />
         </div>
         <div className="info-section">
-          <div className="info-section-title">{t("settings.incall.deepLink")}</div>
-          <div className="info-link-row">
-            <RiSmartphoneLine size={18} />
-            <span className="info-url">{deepLink}</span>
-            <button className="info-copy-btn info-copy-btn-inline" onClick={handleCopyDeep}>
+          <div className="info-link-header">
+            <RiSmartphoneLine size={16} />
+            <span>{t("settings.incall.deepLink")}</span>
+            <button className="info-copy-icon" onClick={handleCopyDeep} title={t("settings.incall.copied")}>
               {copiedDeep ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
-              {copiedDeep ? t("settings.incall.copied") : t("info.copy")}
             </button>
           </div>
+          <input className="info-link-input" readOnly value={deepLink} onClick={e => (e.target as HTMLInputElement).select()} />
         </div>
       </div>
     </div>
@@ -1400,6 +1429,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [displayNameFromOidc, setDisplayNameFromOidc] = useState("");
   const [emailFromOidc, setEmailFromOidc] = useState("");
+  const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState("");
   const [meetInstances, setMeetInstances] = useState<string[]>([]);
 
   const t = useCallback(
@@ -1417,12 +1447,13 @@ export default function App() {
       })
       .catch(() => {});
     // Load session state
-    invoke<{ state: string; display_name?: string; email?: string }>("get_session_state")
+    invoke<{ state: string; display_name?: string; email?: string; meet_instance?: string }>("get_session_state")
       .then((result) => {
         if (result.state === "authenticated") {
           setIsAuthenticated(true);
           setDisplayNameFromOidc(result.display_name || "");
           setEmailFromOidc(result.email || "");
+          if (result.meet_instance) setAuthenticatedMeetInstance(result.meet_instance);
         }
       })
       .catch(() => {});
@@ -1727,12 +1758,14 @@ export default function App() {
               deepLinkUrl={deepLinkUrl}
               onDeepLinkConsumed={() => setDeepLinkUrl(null)}
               isAuthenticated={isAuthenticated}
+              authenticatedMeetInstance={authenticatedMeetInstance}
               displayNameFromOidc={displayNameFromOidc}
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
                   const result = await invoke<{ display_name?: string; email?: string }>("launch_oidc", { meetInstance });
                   setIsAuthenticated(true);
+                  setAuthenticatedMeetInstance(meetInstance);
                   setDisplayNameFromOidc(result.display_name || "");
                   setEmailFromOidc(result.email || "");
                   if (result.display_name && !displayName.trim()) {
@@ -1749,9 +1782,10 @@ export default function App() {
                 }
               }}
               onLogout={() => {
-                if (meetInstances.length > 0) {
-                  invoke("logout_session", { meetUrl: `https://${meetInstances[0]}` }).then(() => {
+                if (authenticatedMeetInstance) {
+                  invoke("logout_session", { meetUrl: `https://${authenticatedMeetInstance}` }).then(() => {
                     setIsAuthenticated(false);
+                    setAuthenticatedMeetInstance("");
                     setDisplayNameFromOidc("");
                     setEmailFromOidc("");
                   });
