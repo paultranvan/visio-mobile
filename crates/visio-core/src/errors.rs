@@ -12,4 +12,6 @@ pub enum VisioError {
     Http(String),
     #[error("invalid URL: {0}")]
     InvalidUrl(String),
+    #[error("Session error: {0}")]
+    Session(String),
 }

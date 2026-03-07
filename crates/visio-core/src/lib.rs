@@ -12,6 +12,7 @@ pub mod events;
 pub mod hand_raise;
 pub mod participants;
 pub mod room;
+pub mod session;
 pub mod settings;
 
 pub use audio_playout::AudioPlayoutBuffer;
@@ -26,4 +27,5 @@ pub use events::{
 pub use hand_raise::HandRaiseManager;
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
+pub use session::{SessionManager, SessionState, UserInfo};
 pub use settings::{Settings, SettingsStore};
