@@ -43,6 +43,7 @@ class ContextDetector(private val context: Context) {
     }
 
     fun start() {
+        Log.i(TAG, "Starting context detection (network, motion, bluetooth)")
         startNetworkMonitoring()
         startMotionDetection()
         startBluetoothMonitoring()

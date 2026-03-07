@@ -346,6 +346,7 @@ object VisioManager : VisioEventListener {
      * Call after connecting to a room.
      */
     fun startContextDetection() {
+        Log.i("VisioManager", "Starting context detection")
         contextDetector = ContextDetector(appContext).also { it.start() }
     }
 
@@ -539,7 +540,9 @@ object VisioManager : VisioEventListener {
                         refreshParticipants()
                         refreshChatMessages()
                         CallForegroundService.start(appContext)
-                        startContextDetection()
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            startContextDetection()
+                        }
                     }
                     is ConnectionState.Disconnected -> {
                         _handRaisedMap.value = emptyMap()
