@@ -117,7 +117,7 @@
   "notification.channelDescription": "Shows when a call is in progress",
   "notification.title": "Visio Mobile",
   "notification.text": "Call in progress",
-  "home.connect": "Connect",
+  "home.connect": "Sign in to my account",
   "home.logout": "Logout",
   "home.loggedAs": "Logged in as",
   "home.serverPicker.title": "Choose a server",

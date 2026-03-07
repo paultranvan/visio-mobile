@@ -74,8 +74,9 @@ fun HomeScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val cookie = result.data?.getStringExtra("sessionid")
-            if (cookie != null) {
-                VisioManager.onAuthCookieReceived(cookie)
+            val meetInstance = result.data?.getStringExtra("meet_instance")
+            if (cookie != null && meetInstance != null) {
+                VisioManager.onAuthCookieReceived(cookie, meetInstance)
             }
         }
     }
@@ -226,9 +227,23 @@ fun HomeScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = VisioColors.Primary500,
+                        contentColor = VisioColors.White,
+                    ),
+                shape = RoundedCornerShape(12.dp),
             ) {
-                Text(Strings.t("home.connect", lang))
+                Icon(
+                    painter = painterResource(R.drawable.ri_account_circle_line),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    Strings.t("home.connect", lang),
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
+                )
             }
         }
 

@@ -45,7 +45,12 @@ impl AuthService {
 
         tracing::info!("requesting token from Meet API: {}", api_url);
 
-        let client = reqwest::Client::new();
+        // Disable auto-redirect so we can detect auth redirects (302 → /authenticate/)
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
         let mut request = client.get(&api_url);
         if let Some(cookie) = session_cookie {
             request = request.header(reqwest::header::COOKIE, format!("sessionid={}", cookie));
@@ -55,6 +60,11 @@ impl AuthService {
             .send()
             .await
             .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        // A redirect means the server wants us to authenticate
+        if resp.status().is_redirection() || resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(VisioError::AuthRequired);
+        }
 
         if !resp.status().is_success() {
             return Err(VisioError::Auth(format!(

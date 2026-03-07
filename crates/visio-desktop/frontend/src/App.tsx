@@ -27,6 +27,7 @@ import {
   RiSendPlane2Fill,
   RiSettings3Line,
   RiLogoutBoxRLine,
+  RiAccountCircleLine,
 } from "@remixicon/react";
 
 // ---------------------------------------------------------------------------
@@ -278,7 +279,8 @@ function HomeView({
   const [meetUrl, setMeetUrl] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
-  const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "error">("idle");
+  const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "auth_required" | "error">("idle");
+  const [resolvedUrl, setResolvedUrl] = useState("");
   const [meetInstances, setMeetInstances] = useState<string[]>([]);
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [customServer, setCustomServer] = useState("");
@@ -303,23 +305,48 @@ function HomeView({
   }, [deepLinkUrl]);
 
   useEffect(() => {
-    const resolved = resolveUrl(meetUrl);
-    const slug = extractSlug(resolved);
+    const trimmed = meetUrl.trim();
+    const isSlug = SLUG_REGEX.test(trimmed);
+
+    // Build list of URLs to try
+    const urlsToTry: string[] = isSlug && meetInstances.length > 0
+      ? meetInstances.map(server => `https://${server}/${trimmed}`)
+      : [trimmed];
+
+    const slug = extractSlug(urlsToTry[0]);
     if (!slug) {
       setRoomStatus("idle");
+      setResolvedUrl(trimmed);
       return;
     }
     setRoomStatus("checking");
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const result = await invoke<{ status: string; livekit_url?: string; token?: string }>(
-          "validate_room", { url: resolved, username: displayName.trim() || null }
-        );
-        if (controller.signal.aborted) return;
-        if (result.status === "valid") setRoomStatus("valid");
-        else if (result.status === "not_found") setRoomStatus("not_found");
-        else setRoomStatus("error");
+        let foundValid = false;
+        for (const url of urlsToTry) {
+          if (controller.signal.aborted) return;
+          const result = await invoke<{ status: string; livekit_url?: string; token?: string }>(
+            "validate_room", { url, username: displayName.trim() || null }
+          );
+          if (controller.signal.aborted) return;
+          if (result.status === "valid") {
+            setRoomStatus("valid");
+            setResolvedUrl(url);
+            foundValid = true;
+            break;
+          }
+          if (result.status === "auth_required") {
+            setRoomStatus("auth_required");
+            setResolvedUrl(url);
+            foundValid = true;
+            break;
+          }
+        }
+        if (!foundValid) {
+          setRoomStatus("not_found");
+          setResolvedUrl(urlsToTry[0]);
+        }
       } catch {
         if (!controller.signal.aborted) setRoomStatus("error");
       }
@@ -328,7 +355,7 @@ function HomeView({
   }, [meetUrl]);
 
   const handleJoin = async () => {
-    const url = resolveUrl(meetUrl);
+    const url = resolvedUrl || resolveUrl(meetUrl);
     if (!url) {
       setError(t("home.error.noUrl"));
       return;
@@ -356,7 +383,7 @@ function HomeView({
         <RiSettings3Line size={24} />
       </button>
       <div className="join-form">
-        <VisioLogo />
+        <img src="/logo.png" alt="Visio Mobile" className="home-logo" />
         <h2>{t("app.title")}</h2>
         <p>{t("home.subtitle")}</p>
         {isAuthenticated ? (
@@ -380,7 +407,7 @@ function HomeView({
           </div>
         ) : (
           <div className="auth-status">
-            <button className="btn btn-secondary" onClick={() => {
+            <button className="btn btn-primary" onClick={() => {
               if (meetInstances.length <= 1) {
                 if (meetInstances.length > 0) onLaunchOidc(meetInstances[0]);
               } else {
@@ -388,7 +415,7 @@ function HomeView({
                 setShowServerPicker(true);
               }
             }}>
-              {t("home.connect")}
+              <RiAccountCircleLine size={18} /> {t("home.connect")}
             </button>
             {showServerPicker && (
               <div className="server-picker-overlay" onClick={() => setShowServerPicker(false)}>
@@ -1129,7 +1156,7 @@ function SettingsModal({
               }
             />
           </div>
-          <div className="settings-section">
+          <div className="settings-section settings-section-col">
             <label className="settings-label">{t("settings.meetInstances")}</label>
             {meetInstances.map((inst, i) => (
               <div key={i} className="instance-row">
@@ -1542,8 +1569,24 @@ export default function App() {
               isAuthenticated={isAuthenticated}
               displayNameFromOidc={displayNameFromOidc}
               emailFromOidc={emailFromOidc}
-              onLaunchOidc={(meetInstance: string) => {
-                invoke("launch_oidc", { meetInstance });
+              onLaunchOidc={async (meetInstance: string) => {
+                try {
+                  const result = await invoke<{ display_name?: string; email?: string }>("launch_oidc", { meetInstance });
+                  setIsAuthenticated(true);
+                  setDisplayNameFromOidc(result.display_name || "");
+                  setEmailFromOidc(result.email || "");
+                  if (result.display_name && !displayName.trim()) {
+                    setDisplayName(result.display_name);
+                  }
+                  // Auto-add the instance to saved Meet instances
+                  if (!meetInstances.includes(meetInstance)) {
+                    const next = [...meetInstances, meetInstance];
+                    setMeetInstances(next);
+                    invoke("set_meet_instances", { instances: next });
+                  }
+                } catch (e) {
+                  console.error("OIDC auth failed:", e);
+                }
               }}
               onLogout={() => {
                 if (meetInstances.length > 0) {

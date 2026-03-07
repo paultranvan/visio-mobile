@@ -180,6 +180,7 @@ main {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 10px 20px;
   border: none;
   border-radius: var(--radius);
@@ -280,6 +281,11 @@ main {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.auth-status,
+.auth-card {
+  margin-bottom: 16px;
+}
+
 /* -- Server Picker --------------------------------------------------------- */
 
 .server-picker-overlay {
@@ -293,11 +299,13 @@ main {
 }
 
 .server-picker {
-  background: var(--surface);
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
   min-width: 320px;
   max-width: 400px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -339,8 +347,8 @@ main {
   flex: 1;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid var(--border, #333);
-  background: var(--surface);
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 0.9rem;
 }
@@ -1273,6 +1281,11 @@ main {
 
 .settings-save:hover {
   background: #1212FF;
+}
+
+.settings-section-col {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .instance-row {

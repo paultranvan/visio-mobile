@@ -76,9 +76,12 @@ struct HomeView: View {
                         }
                     }) {
                         Label(Strings.t("home.connect", lang: lang), systemImage: "person.circle")
+                            .font(.headline)
                             .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
+                    .tint(VisioColors.primary500)
                     .padding(.horizontal, 32)
                 }
 
@@ -212,7 +215,7 @@ struct HomeView: View {
     private func launchOidc(meetInstance: String) {
         manager.authManager.launchOidcFlow(meetInstance: meetInstance) { cookie in
             if let cookie = cookie {
-                manager.onAuthCookieReceived(cookie)
+                manager.onAuthCookieReceived(cookie, meetInstance: meetInstance)
             }
         }
     }

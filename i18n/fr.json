@@ -117,7 +117,7 @@
   "notification.channelDescription": "Affiche quand un appel est en cours",
   "notification.title": "Visio Mobile",
   "notification.text": "Appel en cours",
-  "home.connect": "Se connecter",
+  "home.connect": "Me connecter à mon compte",
   "home.logout": "Déconnexion",
   "home.loggedAs": "Connecté en tant que",
   "home.serverPicker.title": "Choisir un serveur",

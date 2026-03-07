@@ -164,11 +164,16 @@ object VisioManager : VisioEventListener {
         }
     }
 
-    fun onAuthCookieReceived(cookie: String) {
+    fun onAuthCookieReceived(cookie: String, meetInstance: String) {
         authManager.saveCookie(cookie)
+        // Auto-add the instance to saved Meet instances
+        val instances = client.getMeetInstances().toMutableList()
+        if (!instances.contains(meetInstance)) {
+            instances.add(meetInstance)
+            client.setMeetInstances(instances)
+        }
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val meetInstance = client.getMeetInstances().firstOrNull() ?: return@launch
                 client.authenticate("https://$meetInstance", cookie)
                 val state = client.getSessionState()
                 withContext(Dispatchers.Main) {

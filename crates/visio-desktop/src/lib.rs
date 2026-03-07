@@ -261,6 +261,9 @@ async fn validate_room(
             "livekit_url": token_info.livekit_url,
             "token": token_info.token,
         })),
+        Err(visio_core::VisioError::AuthRequired) => {
+            Ok(serde_json::json!({ "status": "auth_required" }))
+        }
         Err(visio_core::VisioError::Auth(msg)) if msg.contains("404") => {
             Ok(serde_json::json!({ "status": "not_found" }))
         }
@@ -628,14 +631,74 @@ async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Resul
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-async fn launch_oidc(meet_instance: String) -> Result<(), String> {
-    let return_to = format!("https://{}/", meet_instance).replace(":", "%3A").replace("/", "%2F");
-    let url = format!(
-        "https://{}/api/v1.0/authenticate/?returnTo={}",
-        meet_instance, return_to
-    );
-    open::that(&url).map_err(|e| e.to_string())?;
-    Ok(())
+async fn launch_oidc(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    meet_instance: String,
+) -> Result<serde_json::Value, String> {
+    let auth_url = format!("https://{}/api/v1.0/authenticate/", meet_instance);
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+    let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+    let instance = meet_instance.clone();
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "auth",
+        tauri::WebviewUrl::External(auth_url.parse().map_err(|e| format!("bad URL: {e}"))?),
+    )
+    .title("Sign in")
+    .inner_size(520.0, 700.0)
+    .on_page_load({
+        let tx = tx.clone();
+        move |webview, payload| {
+            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                return;
+            }
+            let url = payload.url();
+            // After SSO callback, Meet redirects to the instance homepage
+            if url.host_str() == Some(instance.as_str())
+                && !url.path().contains("/oauth2/")
+                && !url.path().contains("/authenticate")
+                && !url.path().contains("/callback")
+            {
+                let meet_url: tauri::Url = format!("https://{}/", instance).parse().unwrap();
+                if let Ok(cookies) = webview.cookies_for_url(meet_url) {
+                    for cookie in &cookies {
+                        if cookie.name() == "sessionid" {
+                            let mut guard = tx.lock().unwrap_or_else(|e| e.into_inner());
+                            if let Some(sender) = guard.take() {
+                                let _ = sender.send(cookie.value().to_string());
+                            }
+                            let _ = webview.close();
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    })
+    .build()
+    .map_err(|e| format!("failed to open auth window: {e}"))?;
+
+    let session_cookie = rx
+        .await
+        .map_err(|_| "authentication window closed without completing login".to_string())?;
+
+    tracing::info!("OIDC auth complete, session cookie obtained");
+
+    // Fetch user info and store the authenticated session
+    let meet_url = format!("https://{}", meet_instance);
+    let user = SessionManager::fetch_user(&meet_url, &session_cookie)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut session = state.session.lock().await;
+    session.set_authenticated(user.clone(), session_cookie);
+
+    Ok(serde_json::json!({
+        "display_name": user.display_name(),
+        "email": user.email,
+    }))
 }
 
 #[tauri::command]

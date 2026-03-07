@@ -280,9 +280,14 @@ class VisioManager: ObservableObject {
         }
     }
 
-    func onAuthCookieReceived(_ cookie: String) {
+    func onAuthCookieReceived(_ cookie: String, meetInstance: String) {
         authManager.saveCookie(cookie)
-        guard let meetInstance = client.getMeetInstances().first else { return }
+        // Auto-add the instance to saved Meet instances
+        var instances = client.getMeetInstances()
+        if !instances.contains(meetInstance) {
+            instances.append(meetInstance)
+            client.setMeetInstances(instances: instances)
+        }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }

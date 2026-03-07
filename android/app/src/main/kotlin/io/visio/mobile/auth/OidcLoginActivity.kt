@@ -107,6 +107,7 @@ class OidcLoginActivity : ComponentActivity() {
             Log.d(TAG, "Session cookie extracted successfully")
             cookieExtracted = true
             intent.putExtra("sessionid", sessionId)
+            intent.putExtra(EXTRA_MEET_INSTANCE, meetInstance)
             setResult(RESULT_OK, intent)
             finish()
         } else {
