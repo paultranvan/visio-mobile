@@ -1,14 +1,11 @@
 package io.visio.mobile
 
-import android.bluetooth.BluetoothDevice
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.ConnectivityManager
@@ -29,7 +26,7 @@ class ContextDetector(private val context: Context) {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var accelerometerListener: SensorEventListener? = null
-    private var bluetoothReceiver: BroadcastReceiver? = null
+    private var audioDeviceCallback: AudioDeviceCallback? = null
 
     private var lastReportedMotion = false
     private var lastSignificantMotionMs = 0L  // last time we saw a significant accel event
@@ -52,12 +49,10 @@ class ContextDetector(private val context: Context) {
     fun stop() {
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         accelerometerListener?.let { sensorManager.unregisterListener(it) }
-        bluetoothReceiver?.let {
-            try { context.unregisterReceiver(it) } catch (_: Exception) {}
-        }
+        audioDeviceCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
         networkCallback = null
         accelerometerListener = null
-        bluetoothReceiver = null
+        audioDeviceCallback = null
     }
 
     private fun startNetworkMonitoring() {
@@ -142,17 +137,18 @@ class ContextDetector(private val context: Context) {
     }
 
     private fun startBluetoothMonitoring() {
-        val filter = IntentFilter().apply {
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        }
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context, intent: Intent) {
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                Log.d(TAG, "Audio devices added: ${addedDevices.map { "${it.productName}(${it.type})" }}")
+                reportBluetoothCarKit()
+            }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                Log.d(TAG, "Audio devices removed: ${removedDevices.map { "${it.productName}(${it.type})" }}")
                 reportBluetoothCarKit()
             }
         }
-        context.registerReceiver(receiver, filter)
-        bluetoothReceiver = receiver
+        audioManager.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
+        audioDeviceCallback = callback
     }
 
     private fun reportBluetoothCarKit() {
@@ -161,6 +157,7 @@ class ContextDetector(private val context: Context) {
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
             it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
         }
+        Log.d(TAG, "Bluetooth car kit: $hasCarKit (outputs: ${devices.map { "${it.productName}(${it.type})" }})")
         try { VisioManager.client.reportBluetoothCarKit(hasCarKit) } catch (_: Exception) {}
     }
 }
