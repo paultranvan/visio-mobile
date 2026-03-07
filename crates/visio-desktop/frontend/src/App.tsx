@@ -255,6 +255,10 @@ function HomeView({
   onDisplayNameChange,
   deepLinkUrl,
   onDeepLinkConsumed,
+  isAuthenticated,
+  displayNameFromOidc,
+  onLaunchOidc,
+  onLogout,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void;
   onOpenSettings: () => void;
@@ -262,6 +266,10 @@ function HomeView({
   onDisplayNameChange: (name: string) => void;
   deepLinkUrl: string | null;
   onDeepLinkConsumed: () => void;
+  isAuthenticated: boolean;
+  displayNameFromOidc: string;
+  onLaunchOidc: () => void;
+  onLogout: () => void;
 }) {
   const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
@@ -346,6 +354,20 @@ function HomeView({
         <VisioLogo />
         <h2>{t("app.title")}</h2>
         <p>{t("home.subtitle")}</p>
+        {isAuthenticated ? (
+          <div className="auth-status">
+            <span>{t("home.loggedAs")} {displayNameFromOidc}</span>
+            <button className="btn btn-secondary" onClick={onLogout}>
+              {t("home.logout")}
+            </button>
+          </div>
+        ) : (
+          <div className="auth-status">
+            <button className="btn btn-secondary" onClick={onLaunchOidc}>
+              {t("home.connect")}
+            </button>
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="meetUrl">{t("home.meetUrl")}</label>
           <input
@@ -1117,6 +1139,10 @@ export default function App() {
   const [lang, setLang] = useState(detectSystemLang);
   // Theme
   const [theme, setTheme] = useState("light");
+  // OIDC auth
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [displayNameFromOidc, setDisplayNameFromOidc] = useState("");
+  const [meetInstances, setMeetInstances] = useState<string[]>([]);
 
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
@@ -1131,6 +1157,19 @@ export default function App() {
         if (s.language) setLang(s.language);
         if (s.theme) setTheme(s.theme);
       })
+      .catch(() => {});
+    // Load session state
+    invoke<{ state: string; display_name?: string }>("get_session_state")
+      .then((result) => {
+        if (result.state === "authenticated") {
+          setIsAuthenticated(true);
+          setDisplayNameFromOidc(result.display_name || "");
+        }
+      })
+      .catch(() => {});
+    // Load meet instances for OIDC
+    invoke<string[]>("get_meet_instances")
+      .then(setMeetInstances)
       .catch(() => {});
   }, []);
 
@@ -1428,6 +1467,21 @@ export default function App() {
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
               onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+              isAuthenticated={isAuthenticated}
+              displayNameFromOidc={displayNameFromOidc}
+              onLaunchOidc={() => {
+                if (meetInstances.length > 0) {
+                  invoke("launch_oidc", { meetInstance: meetInstances[0] });
+                }
+              }}
+              onLogout={() => {
+                if (meetInstances.length > 0) {
+                  invoke("logout_session", { meetUrl: `https://${meetInstances[0]}` }).then(() => {
+                    setIsAuthenticated(false);
+                    setDisplayNameFromOidc("");
+                  });
+                }
+              }}
             />
             {deepLinkError && (
               <div className="deep-link-error">

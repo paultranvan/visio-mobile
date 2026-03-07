@@ -3,8 +3,8 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    ChatService, MeetingControls, RoomManager, SettingsStore, TrackInfo, TrackKind, TrackSource,
-    VisioEvent, VisioEventListener,
+    ChatService, MeetingControls, RoomManager, SessionManager, SessionState, SettingsStore,
+    TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 
 #[cfg(target_os = "macos")]
@@ -52,6 +52,7 @@ struct VisioState {
     room: Arc<Mutex<RoomManager>>,
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
+    session: Mutex<SessionManager>,
     settings: SettingsStore,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
@@ -243,14 +244,18 @@ impl VisioEventListener for DesktopEventListener {
 
 #[tauri::command]
 async fn validate_room(
-    _state: tauri::State<'_, VisioState>,
+    state: tauri::State<'_, VisioState>,
     url: String,
     username: Option<String>,
 ) -> Result<serde_json::Value, String> {
     if let Err(e) = visio_core::AuthService::extract_slug(&url) {
         return Ok(serde_json::json!({ "status": "invalid_format", "message": e.to_string() }));
     }
-    match visio_core::AuthService::validate_room(&url, username.as_deref(), None).await {
+    let cookie = {
+        let session = state.session.lock().await;
+        session.cookie()
+    };
+    match visio_core::AuthService::validate_room(&url, username.as_deref(), cookie.as_deref()).await {
         Ok(token_info) => Ok(serde_json::json!({
             "status": "valid",
             "livekit_url": token_info.livekit_url,
@@ -269,8 +274,12 @@ async fn connect(
     meet_url: String,
     username: Option<String>,
 ) -> Result<(), String> {
+    let cookie = {
+        let session = state.session.lock().await;
+        session.cookie()
+    };
     let room = state.room.lock().await;
-    room.connect(&meet_url, username.as_deref(), None)
+    room.connect(&meet_url, username.as_deref(), cookie.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
@@ -615,6 +624,62 @@ async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Resul
 }
 
 // ---------------------------------------------------------------------------
+// OIDC authentication commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn launch_oidc(meet_instance: String) -> Result<(), String> {
+    let url = format!(
+        "https://{}/authenticate/?returnTo=https://{}/",
+        meet_instance, meet_instance
+    );
+    open::that(&url).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn authenticate(
+    state: tauri::State<'_, VisioState>,
+    meet_url: String,
+    cookie: String,
+) -> Result<serde_json::Value, String> {
+    let user = SessionManager::fetch_user(&meet_url, &cookie)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut session = state.session.lock().await;
+    session.set_authenticated(user.clone(), cookie);
+    Ok(serde_json::json!({
+        "display_name": user.display_name,
+        "email": user.email,
+    }))
+}
+
+#[tauri::command]
+async fn logout_session(
+    state: tauri::State<'_, VisioState>,
+    meet_url: String,
+) -> Result<(), String> {
+    let mut session = state.session.lock().await;
+    session.logout(&meet_url).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_session_state(
+    state: tauri::State<'_, VisioState>,
+) -> Result<serde_json::Value, String> {
+    let session = state.session.lock().await;
+    match session.state() {
+        SessionState::Anonymous => Ok(serde_json::json!({ "state": "anonymous" })),
+        SessionState::Authenticated { user, .. } => Ok(serde_json::json!({
+            "state": "authenticated",
+            "display_name": user.display_name,
+            "email": user.email,
+        })),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -663,6 +728,7 @@ pub fn run() {
         room: room_arc,
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
+        session: Mutex::new(SessionManager::new()),
         settings,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
@@ -747,6 +813,10 @@ pub fn run() {
             lower_hand,
             is_hand_raised,
             set_chat_open,
+            launch_oidc,
+            authenticate,
+            logout_session,
+            get_session_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
