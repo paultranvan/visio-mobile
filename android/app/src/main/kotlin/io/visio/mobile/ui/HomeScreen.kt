@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
@@ -42,6 +43,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.app.Activity
@@ -261,6 +264,11 @@ fun HomeScreen(
                 )
             },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                autoCorrectEnabled = false,
+                capitalization = KeyboardCapitalization.None,
+            ),
             modifier = Modifier.fillMaxWidth(),
             colors =
                 TextFieldDefaults.colors(
@@ -394,6 +402,11 @@ private fun ServerPickerDialog(
                     label = { Text(Strings.t("home.serverPicker.custom", lang)) },
                     placeholder = { Text("meet.example.com") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        autoCorrectEnabled = false,
+                        capitalization = KeyboardCapitalization.None,
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
