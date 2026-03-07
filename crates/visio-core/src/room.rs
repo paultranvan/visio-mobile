@@ -6,6 +6,7 @@ use livekit::track::{RemoteVideoTrack, TrackKind as LkTrackKind, TrackSource as 
 use livekit::webrtc::audio_stream::native::NativeAudioStream;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tokio::sync::Mutex;
 
 use crate::audio_playout::AudioPlayoutBuffer;
@@ -37,6 +38,9 @@ pub struct RoomManager {
     last_meet_url: Arc<Mutex<Option<String>>>,
     last_username: Arc<Mutex<Option<String>>>,
     session_cookie: Arc<Mutex<Option<String>>>,
+    /// Chat unread tracking (shared with event loop).
+    chat_open: Arc<AtomicBool>,
+    unread_count: Arc<AtomicU32>,
 }
 
 impl Default for RoomManager {
@@ -60,6 +64,8 @@ impl RoomManager {
             last_meet_url: Arc::new(Mutex::new(None)),
             last_username: Arc::new(Mutex::new(None)),
             session_cookie: Arc::new(Mutex::new(None)),
+            chat_open: Arc::new(AtomicBool::new(false)),
+            unread_count: Arc::new(AtomicU32::new(0)),
         }
     }
 
@@ -92,6 +98,21 @@ impl RoomManager {
             self.emitter.clone(),
             self.messages.clone(),
         )
+    }
+
+    /// Mark the chat panel as open or closed.
+    /// When opened, resets the unread count to zero.
+    pub fn set_chat_open(&self, open: bool) {
+        self.chat_open.store(open, Ordering::Relaxed);
+        if open {
+            self.unread_count.store(0, Ordering::Relaxed);
+            self.emitter.emit(VisioEvent::UnreadCountChanged(0));
+        }
+    }
+
+    /// Get the current unread message count.
+    pub fn unread_count(&self) -> u32 {
+        self.unread_count.load(Ordering::Relaxed)
     }
 
     /// Get current connection state.
@@ -248,6 +269,8 @@ impl RoomManager {
         let playout_buffer = self.playout_buffer.clone();
         let hand_raise = self.hand_raise.clone();
         let last_meet_url = self.last_meet_url.clone();
+        let chat_open = self.chat_open.clone();
+        let unread_count = self.unread_count.clone();
 
         tokio::spawn(async move {
             Self::event_loop(
@@ -261,6 +284,8 @@ impl RoomManager {
                 playout_buffer,
                 hand_raise,
                 last_meet_url,
+                chat_open,
+                unread_count,
             )
             .await;
         });
@@ -464,6 +489,8 @@ impl RoomManager {
         playout_buffer: Arc<AudioPlayoutBuffer>,
         hand_raise: Arc<Mutex<Option<HandRaiseManager>>>,
         last_meet_url: Arc<Mutex<Option<String>>>,
+        chat_open: Arc<AtomicBool>,
+        unread_count: Arc<AtomicU32>,
     ) {
         let mut reconnect_attempt: u32 = 0;
         // Track active audio stream tasks so they get cancelled on disconnect
@@ -772,6 +799,8 @@ impl RoomManager {
                         let emitter = emitter.clone();
                         let room_ref = room_ref.clone();
                         let identity = participant_identity.to_string();
+                        let chat_open = chat_open.clone();
+                        let unread_count = unread_count.clone();
 
                         tokio::spawn(async move {
                             let reader = reader.take();
@@ -812,6 +841,10 @@ impl RoomManager {
                                     );
                                     messages.lock().await.push(msg.clone());
                                     emitter.emit(VisioEvent::ChatMessageReceived(msg));
+                                    if !chat_open.load(Ordering::Relaxed) {
+                                        let count = unread_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                        emitter.emit(VisioEvent::UnreadCountChanged(count));
+                                    }
                                 }
                                 Err(e) => {
                                     tracing::warn!("Failed to read chat text stream: {e}");
@@ -888,6 +921,10 @@ impl RoomManager {
                             tracing::info!("Chat via DataReceived: from={psid} text={}", msg.text);
                             messages.lock().await.push(msg.clone());
                             emitter.emit(VisioEvent::ChatMessageReceived(msg));
+                            if !chat_open.load(Ordering::Relaxed) {
+                                let count = unread_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                emitter.emit(VisioEvent::UnreadCountChanged(count));
+                            }
                         }
                     }
                 }

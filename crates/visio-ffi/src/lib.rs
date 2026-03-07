@@ -667,11 +667,11 @@ impl VisioClient {
     }
 
     pub fn set_chat_open(&self, open: bool) {
-        self.chat.set_chat_open(open);
+        self.room_manager.set_chat_open(open);
     }
 
     pub fn unread_count(&self) -> u32 {
-        self.chat.unread_count()
+        self.room_manager.unread_count()
     }
 
     pub fn validate_room(&self, url: String, username: Option<String>) -> RoomValidationResult {

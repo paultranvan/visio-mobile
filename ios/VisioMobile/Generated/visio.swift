@@ -406,6 +406,22 @@ private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt8: FfiConverterPrimitive {
+    typealias FfiType = UInt8
+    typealias SwiftType = UInt8
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt8 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: UInt8, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -517,6 +533,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func disconnect() 
     
+    func getBackgroundMode()  -> String
+    
     func getMeetInstances()  -> [String]
     
     func getSettings()  -> Settings
@@ -527,6 +545,10 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func isMicrophoneEnabled()  -> Bool
     
+    func loadBackgroundImage(id: UInt8, jpegPath: String) throws 
+    
+    func loadBlurModel(modelPath: String) throws 
+    
     func lowerHand() throws 
     
     func participants()  -> [ParticipantInfo]
@@ -536,6 +558,10 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     func reconnect() throws 
     
     func sendChatMessage(text: String) throws  -> ChatMessage
+    
+    func sendReaction(emoji: String) throws 
+    
+    func setBackgroundMode(mode: String) 
     
     func setCameraEnabled(enabled: Bool) throws 
     
@@ -672,6 +698,13 @@ open func disconnect()  {try! rustCall() {
 }
 }
     
+open func getBackgroundMode() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_background_mode(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func getMeetInstances() -> [String]  {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(self.uniffiClonePointer(),$0
@@ -707,6 +740,21 @@ open func isMicrophoneEnabled() -> Bool  {
 })
 }
     
+open func loadBackgroundImage(id: UInt8, jpegPath: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_load_background_image(self.uniffiClonePointer(),
+        FfiConverterUInt8.lower(id),
+        FfiConverterString.lower(jpegPath),$0
+    )
+}
+}
+    
+open func loadBlurModel(modelPath: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_load_blur_model(self.uniffiClonePointer(),
+        FfiConverterString.lower(modelPath),$0
+    )
+}
+}
+    
 open func lowerHand()throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_lower_hand(self.uniffiClonePointer(),$0
     )
@@ -738,6 +786,20 @@ open func sendChatMessage(text: String)throws  -> ChatMessage  {
         FfiConverterString.lower(text),$0
     )
 })
+}
+    
+open func sendReaction(emoji: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_send_reaction(self.uniffiClonePointer(),
+        FfiConverterString.lower(emoji),$0
+    )
+}
+}
+    
+open func setBackgroundMode(mode: String)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_background_mode(self.uniffiClonePointer(),
+        FfiConverterString.lower(mode),$0
+    )
+}
 }
     
 open func setCameraEnabled(enabled: Bool)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
@@ -1759,6 +1821,8 @@ public enum VisioError: Swift.Error {
     )
     case InvalidUrl(msg: String
     )
+    case Generic(msg: String
+    )
 }
 
 
@@ -1788,6 +1852,9 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
             msg: try FfiConverterString.read(from: &buf)
             )
         case 5: return .InvalidUrl(
+            msg: try FfiConverterString.read(from: &buf)
+            )
+        case 6: return .Generic(
             msg: try FfiConverterString.read(from: &buf)
             )
 
@@ -1824,6 +1891,11 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
         
         case let .InvalidUrl(msg):
             writeInt(&buf, Int32(5))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .Generic(msg):
+            writeInt(&buf, Int32(6))
             FfiConverterString.write(msg, into: &buf)
             
         }
@@ -1889,6 +1961,8 @@ public enum VisioEvent {
     )
     case unreadCountChanged(count: UInt32
     )
+    case reactionReceived(participantSid: String, participantName: String, emoji: String
+    )
     case connectionLost
 }
 
@@ -1943,7 +2017,10 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         case 12: return .unreadCountChanged(count: try FfiConverterUInt32.read(from: &buf)
         )
         
-        case 13: return .connectionLost
+        case 13: return .reactionReceived(participantSid: try FfiConverterString.read(from: &buf), participantName: try FfiConverterString.read(from: &buf), emoji: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 14: return .connectionLost
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2018,8 +2095,15 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
             FfiConverterUInt32.write(count, into: &buf)
             
         
-        case .connectionLost:
+        case let .reactionReceived(participantSid,participantName,emoji):
             writeInt(&buf, Int32(13))
+            FfiConverterString.write(participantSid, into: &buf)
+            FfiConverterString.write(participantName, into: &buf)
+            FfiConverterString.write(emoji, into: &buf)
+            
+        
+        case .connectionLost:
+            writeInt(&buf, Int32(14))
         
         }
     }
@@ -2304,6 +2388,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_background_mode() != 47158) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2319,6 +2406,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled() != 33466) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_load_background_image() != 6782) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_load_blur_model() != 27369) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_lower_hand() != 53728) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2332,6 +2425,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_send_chat_message() != 33280) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_send_reaction() != 6155) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_background_mode() != 59805) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled() != 34139) {

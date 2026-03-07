@@ -418,32 +418,6 @@ fun CallScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Reaction picker (above control bar)
-            if (showReactionPicker) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    REACTION_EMOJIS.forEach { (id, emoji) ->
-                        Text(
-                            text = emoji,
-                            fontSize = 28.sp,
-                            modifier = Modifier
-                                .clickable {
-                                    VisioManager.sendReaction(id)
-                                    showReactionPicker = false
-                                }
-                                .padding(4.dp),
-                        )
-                    }
-                }
-            }
-
             // Control bar
             ControlBar(
                 micEnabled = micEnabled,
@@ -536,7 +510,11 @@ fun CallScreen(
                         }
                     }
                 },
-                onReaction = { showReactionPicker = !showReactionPicker },
+                onReaction = { emoji ->
+                    VisioManager.sendReaction(emoji)
+                    showReactionPicker = false
+                },
+                onToggleReactionPicker = { showReactionPicker = !showReactionPicker },
                 onParticipants = { showParticipantList = true },
                 onSettings = {
                     inCallSettingsTab = 0
@@ -567,213 +545,326 @@ private fun ControlBar(
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
     onToggleHandRaise: () -> Unit,
-    onReaction: () -> Unit,
+    onReaction: (String) -> Unit,
+    onToggleReactionPicker: () -> Unit,
     onParticipants: () -> Unit,
     onSettings: () -> Unit,
     onChat: () -> Unit,
     onHangUp: () -> Unit,
 ) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .background(VisioColors.PrimaryDark75, RoundedCornerShape(16.dp))
-                .padding(horizontal = 6.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+    var showOverflow by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        // Mic group: toggle + audio picker chevron
+        // Reaction picker (slides above control bar)
+        if (showReactionPicker) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                REACTION_EMOJIS.forEach { (id, emoji) ->
+                    Text(
+                        text = emoji,
+                        fontSize = 28.sp,
+                        modifier = Modifier
+                            .clickable { onReaction(id) }
+                            .padding(4.dp),
+                    )
+                }
+            }
+        }
+
+        // Overflow menu (slides above control bar)
+        if (showOverflow) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Hand raise
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        onToggleHandRaise()
+                        showOverflow = false
+                    }.padding(horizontal = 8.dp),
+                ) {
+                    IconButton(
+                        onClick = {
+                            onToggleHandRaise()
+                            showOverflow = false
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(
+                                if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
+                                RoundedCornerShape(8.dp),
+                            ),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ri_hand),
+                            contentDescription = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
+                            tint = if (isHandRaised) Color.Black else VisioColors.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Text(
+                        text = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
+                        color = VisioColors.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                    )
+                }
+
+                // Reaction
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        showOverflow = false
+                        onToggleReactionPicker()
+                    }.padding(horizontal = 8.dp),
+                ) {
+                    IconButton(
+                        onClick = {
+                            showOverflow = false
+                            onToggleReactionPicker()
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ri_emotion_line),
+                            contentDescription = "Reaction",
+                            tint = VisioColors.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Text(
+                        text = "Reaction",
+                        color = VisioColors.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                    )
+                }
+
+                // Settings
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable {
+                        showOverflow = false
+                        onSettings()
+                    }.padding(horizontal = 8.dp),
+                ) {
+                    IconButton(
+                        onClick = {
+                            showOverflow = false
+                            onSettings()
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ri_settings_3_line),
+                            contentDescription = Strings.t("settings.incall", lang),
+                            tint = VisioColors.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Text(
+                        text = Strings.t("settings.incall", lang),
+                        color = VisioColors.White,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+
+        // Main control bar
         Row(
             modifier =
                 Modifier
-                    .background(
-                        if (micEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
-                        RoundedCornerShape(8.dp),
-                    ),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .background(VisioColors.PrimaryDark75, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Mic group: toggle + audio picker chevron
+            Row(
+                modifier =
+                    Modifier
+                        .background(
+                            if (micEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
+                            RoundedCornerShape(8.dp),
+                        ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = onToggleMic,
+                    modifier = Modifier.size(38.dp),
+                ) {
+                    Icon(
+                        painter =
+                            painterResource(
+                                if (micEnabled) R.drawable.ri_mic_line else R.drawable.ri_mic_off_line,
+                            ),
+                        contentDescription = if (micEnabled) Strings.t("control.mute", lang) else Strings.t("control.unmute", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                IconButton(
+                    onClick = onAudioPicker,
+                    modifier = Modifier.size(22.dp, 38.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_arrow_up_s_line),
+                        contentDescription = Strings.t("control.audioDevices", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
+
+            // Camera toggle
             IconButton(
-                onClick = onToggleMic,
-                modifier = Modifier.size(38.dp),
+                onClick = onToggleCamera,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(
+                            if (cameraEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
+                            RoundedCornerShape(8.dp),
+                        ),
             ) {
                 Icon(
                     painter =
                         painterResource(
-                            if (micEnabled) R.drawable.ri_mic_line else R.drawable.ri_mic_off_line,
+                            if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line,
                         ),
-                    contentDescription = if (micEnabled) Strings.t("control.mute", lang) else Strings.t("control.unmute", lang),
+                    contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
                     tint = VisioColors.White,
                     modifier = Modifier.size(20.dp),
                 )
             }
+
+            // Participants with count badge
             IconButton(
-                onClick = onAudioPicker,
-                modifier = Modifier.size(22.dp, 38.dp),
+                onClick = onParticipants,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ri_arrow_up_s_line),
-                    contentDescription = Strings.t("control.audioDevices", lang),
-                    tint = VisioColors.White,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-        }
-
-        // Camera toggle
-        IconButton(
-            onClick = onToggleCamera,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(
-                        if (cameraEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
-                        RoundedCornerShape(8.dp),
-                    ),
-        ) {
-            Icon(
-                painter =
-                    painterResource(
-                        if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line,
-                    ),
-                contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        // Hand raise
-        IconButton(
-            onClick = onToggleHandRaise,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(
-                        if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
-                        RoundedCornerShape(8.dp),
-                    ),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_hand),
-                contentDescription = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-                tint = if (isHandRaised) Color.Black else VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        // Reaction emoji
-        IconButton(
-            onClick = onReaction,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(
-                        if (showReactionPicker) VisioColors.Primary500 else VisioColors.PrimaryDark100,
-                        RoundedCornerShape(8.dp),
-                    ),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_emotion_line),
-                contentDescription = "Reaction",
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        // Participants with count badge
-        IconButton(
-            onClick = onParticipants,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-        ) {
-            BadgedBox(
-                badge = {
-                    if (participantCount > 0) {
-                        Badge(
-                            containerColor = VisioColors.Primary500,
-                            contentColor = VisioColors.White,
-                        ) {
-                            Text(
-                                text = "$participantCount",
-                                fontSize = 10.sp,
-                            )
+                BadgedBox(
+                    badge = {
+                        if (participantCount > 0) {
+                            Badge(
+                                containerColor = VisioColors.Primary500,
+                                contentColor = VisioColors.White,
+                            ) {
+                                Text(
+                                    text = "$participantCount",
+                                    fontSize = 10.sp,
+                                )
+                            }
                         }
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_group_line),
+                        contentDescription = Strings.t("participants.title", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            // Chat with unread badge
+            IconButton(
+                onClick = onChat,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+            ) {
+                BadgedBox(
+                    badge = {
+                        if (unreadCount > 0) {
+                            Badge(
+                                containerColor = VisioColors.Error500,
+                                contentColor = VisioColors.White,
+                            ) {
+                                Text(
+                                    text = "$unreadCount",
+                                    fontSize = 10.sp,
+                                )
+                            }
+                        }
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_chat_1_line),
+                        contentDescription = Strings.t("chat", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            // More (overflow) button
+            IconButton(
+                onClick = {
+                    showOverflow = !showOverflow
+                    if (showOverflow) {
+                        // Close reaction picker when opening overflow
                     }
                 },
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(
+                            if (showOverflow) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                            RoundedCornerShape(8.dp),
+                        ),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ri_group_line),
-                    contentDescription = Strings.t("participants.title", lang),
+                    painter = painterResource(R.drawable.ri_more_2_fill),
+                    contentDescription = "More",
                     tint = VisioColors.White,
                     modifier = Modifier.size(20.dp),
                 )
             }
-        }
 
-        // Chat with unread badge
-        IconButton(
-            onClick = onChat,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-        ) {
-            BadgedBox(
-                badge = {
-                    if (unreadCount > 0) {
-                        Badge(
-                            containerColor = VisioColors.Error500,
-                            contentColor = VisioColors.White,
-                        ) {
-                            Text(
-                                text = if (unreadCount > 9) "9+" else "$unreadCount",
-                                fontSize = 10.sp,
-                            )
-                        }
-                    }
-                },
+            // Hangup
+            IconButton(
+                onClick = onHangUp,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.Error500, RoundedCornerShape(8.dp)),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ri_chat_1_line),
-                    contentDescription = Strings.t("chat", lang),
+                    painter = painterResource(R.drawable.ri_phone_fill),
+                    contentDescription = Strings.t("control.leave", lang),
                     tint = VisioColors.White,
                     modifier = Modifier.size(20.dp),
                 )
             }
-        }
-
-        // Settings gear
-        IconButton(
-            onClick = onSettings,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_settings_3_line),
-                contentDescription = Strings.t("settings.incall", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-
-        // Hangup
-        IconButton(
-            onClick = onHangUp,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.Error500, RoundedCornerShape(8.dp)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_phone_fill),
-                contentDescription = Strings.t("control.leave", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }

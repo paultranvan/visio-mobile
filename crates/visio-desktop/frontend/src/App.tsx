@@ -27,6 +27,8 @@ import {
   RiCloseLine,
   RiSendPlane2Fill,
   RiSettings3Line,
+  RiMore2Fill,
+  RiEmotionLine,
 } from "@remixicon/react";
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,25 @@ interface Settings {
   camera_enabled_on_join: boolean;
   theme: string;
 }
+
+interface ReactionData {
+  id: number;
+  participantSid: string;
+  participantName: string;
+  emoji: string;
+  timestamp: number;
+}
+
+const REACTION_EMOJIS: [string, string][] = [
+  ["thumbs-up", "\u{1F44D}"],
+  ["thumbs-down", "\u{1F44E}"],
+  ["clapping-hands", "\u{1F44F}"],
+  ["red-heart", "\u2764\uFE0F"],
+  ["face-with-tears-of-joy", "\u{1F602}"],
+  ["face-with-open-mouth", "\u{1F62E}"],
+  ["party-popper", "\u{1F389}"],
+  ["folded-hands", "\u{1F64F}"],
+];
 
 // ---------------------------------------------------------------------------
 // i18n
@@ -611,6 +632,49 @@ function CallView({
   const [chatInput, setChatInput] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [bgMode, setBgMode] = useState("off");
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [reactions, setReactions] = useState<ReactionData[]>([]);
+  const reactionIdCounter = useRef(0);
+
+  // Listen for reaction events
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    listen<{ participantSid: string; participantName: string; emoji: string }>(
+      "reaction-received",
+      (event) => {
+        const { participantSid, participantName, emoji } = event.payload;
+        const id = ++reactionIdCounter.current;
+        const reaction: ReactionData = {
+          id,
+          participantSid,
+          participantName,
+          emoji,
+          timestamp: Date.now(),
+        };
+        setReactions((prev) => [...prev, reaction]);
+        // Auto-remove after 3 seconds
+        setTimeout(() => {
+          setReactions((prev) => prev.filter((r) => r.id !== id));
+        }, 3000);
+      }
+    ).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  const handleSendReaction = async (emojiId: string) => {
+    try {
+      await invoke("send_reaction", { emoji: emojiId });
+    } catch (e) {
+      console.error("send_reaction error:", e);
+    }
+    setShowReactionPicker(false);
+    setShowOverflow(false);
+  };
 
   // Load current background mode on mount
   useEffect(() => {
@@ -630,6 +694,19 @@ function CallView({
       console.error("set_background_mode error:", e);
     }
   };
+
+  // Close overflow/reaction picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (!target.closest(".overflow-menu, .reaction-picker, .control-btn")) {
+        setShowOverflow(false);
+        setShowReactionPicker(false);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -807,6 +884,79 @@ function CallView({
         )}
       </div>
 
+      {/* Reaction overlay */}
+      {reactions.length > 0 && (
+        <div className="reaction-overlay">
+          {reactions.map((r) => {
+            const emojiChar = REACTION_EMOJIS.find(([id]) => id === r.emoji)?.[1] ?? r.emoji;
+            return (
+              <div key={r.id} className="floating-reaction">
+                <span className="floating-reaction-emoji">{emojiChar}</span>
+                <span className="floating-reaction-name">{r.participantName}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Overflow menu */}
+      {showOverflow && (
+        <div className="overflow-menu">
+          <button
+            className={`overflow-item ${isHandRaised ? "overflow-item-active" : ""}`}
+            onClick={() => { onToggleHandRaise(); setShowOverflow(false); }}
+          >
+            <RiHand size={20} />
+            <span>{isHandRaised ? t("control.lowerHand") : t("control.raiseHand")}</span>
+          </button>
+          <button
+            className="overflow-item"
+            onClick={() => { setShowReactionPicker(!showReactionPicker); setShowOverflow(false); }}
+          >
+            <RiEmotionLine size={20} />
+            <span>{t("control.reaction") || "Reaction"}</span>
+          </button>
+          <button
+            className={`overflow-item ${showTranscription ? "overflow-item-active" : ""}`}
+            onClick={() => { onToggleTranscription(); setShowOverflow(false); }}
+          >
+            <RiApps2Line size={20} />
+            <span>{t("control.tools")}</span>
+          </button>
+          <button
+            className={`overflow-item ${showInfo ? "overflow-item-active" : ""}`}
+            onClick={() => { onToggleInfo(); setShowOverflow(false); }}
+          >
+            <RiInformationLine size={20} />
+            <span>{t("control.info")}</span>
+          </button>
+          <button
+            className="overflow-item"
+            onClick={() => { setShowOverflow(false); }}
+            title={t("control.settings") || "Settings"}
+          >
+            <RiSettings3Line size={20} />
+            <span>{t("control.settings") || "Settings"}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Reaction picker */}
+      {showReactionPicker && (
+        <div className="reaction-picker">
+          {REACTION_EMOJIS.map(([id, char]) => (
+            <button
+              key={id}
+              className="reaction-picker-btn"
+              onClick={() => handleSendReaction(id)}
+              title={id}
+            >
+              {char}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Control bar */}
       <div className="control-bar">
         {/* Mic group */}
@@ -853,13 +1003,16 @@ function CallView({
           </button>
         </div>
 
-        {/* Hand raise */}
+        {/* Participants */}
         <button
-          className={`control-btn ${isHandRaised ? "control-btn-hand" : ""}`}
-          onClick={onToggleHandRaise}
-          title={isHandRaised ? t("control.lowerHand") : t("control.raiseHand")}
+          className={`control-btn ${showParticipants ? "control-btn-hand" : ""}`}
+          onClick={onToggleParticipants}
+          title={t("control.participants")}
         >
-          <RiHand size={20} />
+          <RiGroupLine size={20} />
+          <span className="unread-badge" style={{ background: "var(--accent)" }}>
+            {allParticipants.length}
+          </span>
         </button>
 
         {/* Chat */}
@@ -876,34 +1029,13 @@ function CallView({
           )}
         </button>
 
-        {/* Participants */}
+        {/* More (overflow) */}
         <button
-          className={`control-btn ${showParticipants ? "control-btn-hand" : ""}`}
-          onClick={onToggleParticipants}
-          title={t("control.participants")}
+          className={`control-btn ${showOverflow ? "control-btn-hand" : ""}`}
+          onClick={() => { setShowOverflow(!showOverflow); setShowReactionPicker(false); }}
+          title={t("control.more") || "More"}
         >
-          <RiGroupLine size={20} />
-          <span className="unread-badge" style={{ background: "var(--accent)" }}>
-            {allParticipants.length}
-          </span>
-        </button>
-
-        {/* Tools */}
-        <button
-          className={`control-btn ${showTranscription ? "control-btn-hand" : ""}`}
-          onClick={onToggleTranscription}
-          title={t("control.tools")}
-        >
-          <RiApps2Line size={20} />
-        </button>
-
-        {/* Info */}
-        <button
-          className={`control-btn ${showInfo ? "control-btn-hand" : ""}`}
-          onClick={onToggleInfo}
-          title={t("control.info")}
-        >
-          <RiInformationLine size={20} />
+          <RiMore2Fill size={20} />
         </button>
 
         {/* Hangup */}

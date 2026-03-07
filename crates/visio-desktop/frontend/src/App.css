@@ -1270,3 +1270,135 @@ main {
 .room-status.valid { color: #18753c; }
 .room-status.not-found { color: #e1000f; }
 .room-status.error { color: var(--error-text, #DC2626); }
+
+/* -- Overflow Menu --------------------------------------------------------- */
+
+.overflow-menu {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(30, 30, 50, 0.85);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  position: absolute;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: fade-in 0.15s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.overflow-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.overflow-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.overflow-item-active {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* -- Reaction Picker ------------------------------------------------------- */
+
+.reaction-picker {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: rgba(30, 30, 50, 0.85);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  position: absolute;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: fade-in 0.15s ease-out;
+}
+
+.reaction-picker-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.reaction-picker-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.2);
+}
+
+/* -- Reaction Overlay ------------------------------------------------------ */
+
+.reaction-overlay {
+  position: absolute;
+  bottom: 80px;
+  left: 20px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.floating-reaction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  animation: floatUp 3s ease-out forwards;
+  pointer-events: none;
+}
+
+.floating-reaction-emoji {
+  font-size: 2rem;
+}
+
+.floating-reaction-name {
+  font-size: 0.75rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-200px);
+    opacity: 0;
+  }
+}
