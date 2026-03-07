@@ -27,5 +27,5 @@ pub use events::{
 pub use hand_raise::HandRaiseManager;
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
-pub use session::{SessionManager, SessionState, UserInfo};
+pub use session::{CreateRoomLiveKit, CreateRoomResponse, SessionManager, SessionState, UserInfo};
 pub use settings::{Settings, SettingsStore};

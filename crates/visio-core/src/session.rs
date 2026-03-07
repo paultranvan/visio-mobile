@@ -25,6 +25,22 @@ impl UserInfo {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRoomLiveKit {
+    pub url: String,
+    pub room: String,
+    pub token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateRoomResponse {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub access_level: String,
+    pub livekit: CreateRoomLiveKit,
+}
+
 #[derive(Debug, Clone)]
 pub enum SessionState {
     Anonymous,
@@ -143,6 +159,60 @@ impl SessionManager {
         self.clear();
         Ok(())
     }
+
+    pub async fn create_room(
+        meet_url: &str,
+        cookie: &str,
+        name: &str,
+        access_level: &str,
+    ) -> Result<CreateRoomResponse, VisioError> {
+        use rand::Rng;
+
+        let url = format!("{}/api/v1.0/rooms/", meet_url.trim_end_matches('/'));
+
+        let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
+        let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
+
+        let cookie_header = format!("sessionid={}; csrftoken={}", cookie, csrf_token);
+
+        let body = serde_json::json!({
+            "name": name,
+            "access_level": access_level,
+        });
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&url)
+            .header(COOKIE, &cookie_header)
+            .header("X-CSRFToken", &csrf_token)
+            .header("Referer", format!("{}/", meet_url.trim_end_matches('/')))
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        let status = response.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED
+            || status == reqwest::StatusCode::FORBIDDEN
+        {
+            return Err(VisioError::Session(
+                "Authentication required to create a room".to_string(),
+            ));
+        }
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(VisioError::Session(format!(
+                "Room creation failed ({}): {}",
+                status, body
+            )));
+        }
+
+        response
+            .json()
+            .await
+            .map_err(|e| VisioError::Session(format!("Invalid room response: {}", e)))
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +280,39 @@ mod tests {
     async fn test_fetch_user_with_invalid_cookie_returns_error() {
         let result =
             SessionManager::fetch_user("https://meet.example.com", "invalid_cookie").await;
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_room_response_deserialization() {
+        let json = r#"{
+            "id": "cc9950db-cf78-4bf0-84b2-4d906148c849",
+            "name": "Test Room",
+            "slug": "test-room",
+            "access_level": "public",
+            "livekit": {
+                "url": "https://livekit.example.com",
+                "room": "cc9950db-cf78-4bf0-84b2-4d906148c849",
+                "token": "eyJhbGciOiJIUzI1NiJ9.test"
+            }
+        }"#;
+        let resp: CreateRoomResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.slug, "test-room");
+        assert_eq!(resp.name, "Test Room");
+        assert_eq!(resp.access_level, "public");
+        assert_eq!(resp.livekit.url, "https://livekit.example.com");
+        assert!(!resp.livekit.token.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_create_room_without_auth_returns_error() {
+        let result = SessionManager::create_room(
+            "https://meet.example.com",
+            "invalid_cookie",
+            "Test Room",
+            "public",
+        )
+        .await;
         assert!(result.is_err());
     }
 }
