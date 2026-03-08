@@ -1562,3 +1562,92 @@ main {
 .member-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
 .member-info { display: flex; flex-direction: column; }
 .member-role { font-size: 0.75em; opacity: 0.6; }
+
+/* -- Lobby Notification Banner --------------------------------------------- */
+
+.lobby-notification {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: lobby-slide-in 0.3s ease-out;
+}
+
+@keyframes lobby-slide-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.lobby-notification-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.lobby-notification-text strong {
+  font-weight: 600;
+}
+
+.lobby-notification-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lobby-notification .btn-admit {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.lobby-notification .btn-admit:hover {
+  background: #1212FF;
+}
+
+.lobby-notification .btn-view {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  background: var(--bg-tertiary);
+  color: var(--text);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.lobby-notification .btn-view:hover {
+  background: var(--text-tertiary);
+}
+
+.lobby-notification .btn-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.lobby-notification .btn-dismiss:hover {
+  color: var(--text);
+  background: var(--bg-tertiary);
+}

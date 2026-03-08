@@ -1034,6 +1034,8 @@ function CallView({
   onSelectVideoInput,
   waitingParticipants,
   setWaitingParticipants,
+  lobbyNotification,
+  setLobbyNotification,
   roomId,
   accessLevel,
 }: {
@@ -1074,6 +1076,8 @@ function CallView({
   onSelectVideoInput: (id: string) => void;
   waitingParticipants: Array<{id: string, username: string}>;
   setWaitingParticipants: React.Dispatch<React.SetStateAction<Array<{id: string, username: string}>>>;
+  lobbyNotification: { username: string; id: string } | null;
+  setLobbyNotification: React.Dispatch<React.SetStateAction<{ username: string; id: string } | null>>;
   roomId?: string;
   accessLevel?: string;
 }) {
@@ -1112,6 +1116,45 @@ function CallView({
 
   return (
     <div id="call" className="section active">
+      {/* Lobby notification banner */}
+      {lobbyNotification && (
+        <div className="lobby-notification">
+          <span className="lobby-notification-text">
+            {(() => {
+              const parts = t("lobby.joinRequest").split("{{name}}");
+              return <>{parts[0]}<strong>{lobbyNotification.username}</strong>{parts[1]}</>;
+            })()}
+          </span>
+          <div className="lobby-notification-actions">
+            <button
+              className="btn-admit"
+              onClick={async () => {
+                try {
+                  await invoke("admit_participant", { participantId: lobbyNotification.id });
+                  setWaitingParticipants((prev) => prev.filter((x) => x.id !== lobbyNotification.id));
+                } catch (e) {
+                  console.error("admit error:", e);
+                }
+                setLobbyNotification(null);
+              }}
+            >
+              {t("lobby.admit")}
+            </button>
+            <button
+              className="btn-view"
+              onClick={() => {
+                if (!showParticipants) onToggleParticipants();
+                setLobbyNotification(null);
+              }}
+            >
+              {t("lobby.view")}
+            </button>
+          </div>
+          <button className="btn-dismiss" onClick={() => setLobbyNotification(null)}>
+            <RiCloseLine size={16} />
+          </button>
+        </div>
+      )}
       <div className="call-body">
         {/* Main video area */}
         <div className="call-content">
@@ -1660,6 +1703,8 @@ export default function App() {
 
   // Lobby / waiting room
   const [waitingParticipants, setWaitingParticipants] = useState<Array<{id: string, username: string}>>([]);
+  const [lobbyNotification, setLobbyNotification] = useState<{ username: string; id: string } | null>(null);
+  const lobbyNotifTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Deep link
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
@@ -1923,6 +1968,13 @@ export default function App() {
         if (prev.some((x) => x.id === p.id)) return prev;
         return [...prev, p];
       });
+      // Show notification banner
+      setLobbyNotification({ username: p.username, id: p.id });
+      if (lobbyNotifTimeoutRef.current) clearTimeout(lobbyNotifTimeoutRef.current);
+      lobbyNotifTimeoutRef.current = setTimeout(() => {
+        setLobbyNotification(null);
+        lobbyNotifTimeoutRef.current = null;
+      }, 10_000);
     }).then((fn) => {
       unlistenJoined = fn;
     });
@@ -1938,6 +1990,7 @@ export default function App() {
       if (unlistenDenied) unlistenDenied();
       if (unlistenJoined) unlistenJoined();
       if (unlistenLeft) unlistenLeft();
+      if (lobbyNotifTimeoutRef.current) clearTimeout(lobbyNotifTimeoutRef.current);
     };
   }, [t]);
 
@@ -2136,6 +2189,8 @@ export default function App() {
             onSelectVideoInput={setSelectedVideoInput}
             waitingParticipants={waitingParticipants}
             setWaitingParticipants={setWaitingParticipants}
+            lobbyNotification={lobbyNotification}
+            setLobbyNotification={setLobbyNotification}
             roomId={currentRoomId || undefined}
             accessLevel={currentAccessLevel || undefined}
           />
