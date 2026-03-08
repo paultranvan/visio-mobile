@@ -22,6 +22,66 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
   <em>Left: iOS — Home screen &nbsp;|&nbsp; Right: Android — Active video call</em>
 </p>
 
+## Authentication (OIDC / ProConnect)
+
+Visio Mobile supports authentication via **OpenID Connect** (OIDC), compatible with ProConnect and any OIDC provider configured on the Meet server. Authentication is optional — anonymous users can still join public rooms via URL.
+
+### How it works
+
+<p align="center">
+  <img src="docs/screenshots/01_Screenshot_Home_with_IODC.png" alt="Home screen with OIDC login button" width="220" />
+  &nbsp;
+  <img src="docs/screenshots/02_Screenshot_OIDC_Connect.png" alt="Authenticated user with avatar and logout" width="220" />
+  &nbsp;
+  <img src="docs/screenshots/03_Screenshot_New_Trusted_Room.png" alt="Room creation dialog with access levels" width="220" />
+</p>
+
+1. **Home screen** — The "Me connecter à mon compte" button starts the OIDC flow. The user enters a room URL and display name as usual.
+2. **Authenticated state** — After login, the user's identity (name, email, avatar) is displayed. A logout button and a "Créer une salle" (Create a room) button appear.
+3. **Room creation** — Authenticated users can create rooms directly from the app, choosing the access level: Public, Trusted, or Restricted.
+
+<p align="center">
+  <img src="docs/screenshots/04_Screenshot_Trusted_Room_Info.png" alt="Room info with shareable links" width="220" />
+  &nbsp;
+  <img src="docs/screenshots/05_Screenshot_Notification_Participant_Android.png" alt="Lobby notification banner" width="220" />
+  &nbsp;
+  <img src="docs/screenshots/06_Screenshot_Admission_Participant_Android.png" alt="Participant admission in waiting room" width="220" />
+</p>
+
+4. **Room info** — After creation, the room info displays the shareable web link and the `visio://` deep link with copy and share buttons.
+5. **Lobby notification** — When a participant requests to join a trusted room, the host sees a persistent notification banner with "Admettre" (Admit) and "Voir" (View) buttons.
+6. **Waiting room management** — The participants panel shows the waiting room section with admit/deny controls for each pending participant.
+
+### Room access levels
+
+| Level | Description | Authentication required |
+|-------|-------------|------------------------|
+| **Public** | Anyone with the link can join immediately | No |
+| **Trusted** | Only authenticated users can join; anonymous users enter a waiting room where the host can admit or deny them | Host: Yes · Guests: No (waiting room) |
+| **Restricted** | Invitation only — only users explicitly added as members by the room creator can join | Yes (all participants) |
+
+**Server prerequisites for restricted rooms:** The Meet server must support the `/api/v1.0/rooms/<id>/accesses/` endpoint for managing room membership. This is available in La Suite Meet ≥ 1.7.
+
+### Session management
+
+- The OIDC session cookie is stored securely in the platform keychain (Android Keystore / iOS Keychain / Desktop OS credential store)
+- Sessions persist across app restarts — no need to re-authenticate each time
+- The OIDC flow uses an embedded `WKWebView` (iOS) / `WebView` (Android) with a non-persistent cookie jar to ensure clean login state
+
+## Background blur and replacement
+
+Visio Mobile includes on-device background processing powered by a **selfie segmentation AI model** (ONNX Runtime). All processing runs locally on the device — no frames are sent to any server.
+
+Available modes:
+- **Background blur** — Gaussian blur applied to the background while keeping the person in focus
+- **Background replacement** — Replace the background with one of 8 built-in images
+
+The feature uses the [MediaPipe Selfie Segmentation](https://ai.google.dev/edge/mediapipe/solutions/vision/image_segmenter) model converted to ONNX format, running inference at each camera frame through ONNX Runtime. Settings are accessible from the in-call settings panel on all three platforms.
+
+## Animated reactions
+
+Participants can send animated emoji reactions during a call. Reactions are transmitted in real time via LiveKit data channels and displayed as floating animations on all participants' screens. Available from the overflow menu in the call control bar.
+
 ## Platforms
 
 | Platform | UI toolkit | Min version |
@@ -47,6 +107,7 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 │   RoomManager · AuthService · ChatService        │
 │   MeetingControls · ParticipantManager           │
 │   HandRaiseManager · SettingsStore               │
+│   LobbyService · AccessService · SessionManager  │
 ├──────────────────────────────────────────────────┤
 │                  visio-video                     │
 │   I420 renderer registry · platform renderers    │
@@ -57,9 +118,9 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 
 **4 Rust crates:**
 
-- **`visio-core`** — Room lifecycle, auth (Meet API token fetch + room validation), chat (Stream API `lk.chat`), participants, media controls, hand raise (Meet interop), active speaker tracking, persistent settings, event system
+- **`visio-core`** — Room lifecycle, auth (Meet API + OIDC session), chat (Stream API `lk.chat`), participants, media controls, hand raise (Meet interop), active speaker tracking, persistent settings, event system, lobby/waiting room, room access management, reactions
 - **`visio-video`** — Video frame rendering: I420 decode, renderer registry, platform-specific renderers
-- **`visio-ffi`** — UniFFI `.udl` bindings (control plane) + raw C FFI (video/audio zero-copy)
+- **`visio-ffi`** — UniFFI `.udl` bindings (control plane) + raw C FFI (video/audio zero-copy) + on-device background blur/replacement (ONNX Runtime selfie segmentation)
 - **`visio-desktop`** — Tauri 2.x commands + cpal audio + AVFoundation camera capture (macOS)
 
 **Key design decisions:**
@@ -67,6 +128,7 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 - Raw C FFI for video/audio (zero-copy I420 to native surfaces, PCM audio pull)
 - No WebView for calls — fully native rendering on each platform
 - Guest-first: no auth required, join via Meet URL
+- Edge-first AI: background blur/replacement runs on-device via ONNX Runtime, no data leaves the device
 
 ## Prerequisites
 
@@ -141,7 +203,7 @@ Translations are stored as shared JSON files in the `i18n/` directory at the pro
 
 ```
 i18n/
-  en.json    # English (reference — 96 keys)
+  en.json    # English (reference — 169 keys)
   fr.json    # Français
   de.json    # Deutsch
   es.json    # Español
@@ -149,7 +211,7 @@ i18n/
   nl.json    # Nederlands
 ```
 
-**Adding a new language:** Create a new `i18n/<code>.json` file with all 96 keys translated. Then add the language code to `SUPPORTED_LANGS` (Desktop `App.tsx`), `supportedLangs` (Android `Strings.kt`, iOS `Strings.swift`).
+**Adding a new language:** Create a new `i18n/<code>.json` file with all 169 keys translated. Then add the language code to `SUPPORTED_LANGS` (Desktop `App.tsx`), `supportedLangs` (Android `Strings.kt`, iOS `Strings.swift`).
 
 **Adding a new key:** Add the key to all 6 JSON files. Use `t("key")` (Desktop), `Strings.t("key", lang)` (Android/iOS) in the UI code.
 
@@ -225,14 +287,19 @@ scripts/            Build scripts (Android NDK, iOS fat libs)
 ## What works
 
 **Core:**
-- Join a La Suite Meet room via URL (guest mode)
+- Join a La Suite Meet room via URL (guest or authenticated)
+- OIDC / ProConnect authentication with persistent session
+- Room creation with 3 access levels: public, trusted, restricted
+- Waiting room / lobby management for trusted rooms (admit/deny participants)
+- Restricted room member management (invite by user search)
 - Real-time room URL validation with debounce (checks Meet API before joining)
 - Bidirectional audio (mic + speaker) on all platforms
-- Bidirectional video (camera + remote video) on Android and desktop
-- iOS: video reception works, camera capture pipeline ready (tested via test pattern, needs physical device)
+- Bidirectional video (camera + remote video) on all platforms
 - Chat (bidirectional with Meet via LiveKit Stream API `lk.chat` topic)
 - Participant list with connection quality indicators
 - Hand raise with Meet interop (uses `handRaisedAt` attribute, auto-lower after 3s speaking)
+- On-device background blur and background replacement (ONNX Runtime selfie segmentation)
+- Animated emoji reactions via LiveKit data channels
 - Persistent settings (display name, language, theme, mic/camera on join)
 - Deep links: `visio://host/slug` opens the app with room pre-filled (all platforms)
 - Configurable Meet instances list in Settings
@@ -278,19 +345,25 @@ scripts/            Build scripts (Android NDK, iOS fat libs)
 - Room URL validation with real-time debounced feedback
 - Settings view (display name, language, mic/camera on join)
 
-## Recent additions
+## Recent additions (v0.4.0)
 
+- **OIDC / ProConnect authentication**: Full login flow with embedded WebView, session persistence in platform keychain, user profile display, and logout
+- **Room creation**: Authenticated users can create rooms with public, trusted, or restricted access levels
+- **Waiting room / lobby**: Host notification banner, participant admit/deny, waiting room section in participant list
+- **Restricted rooms**: Invitation-only rooms with user search and member management
+- **Background blur & replacement**: On-device AI-powered background processing using selfie segmentation (ONNX Runtime), with 8 built-in replacement images
+- **Animated reactions**: Real-time emoji reactions via LiveKit data channels with floating animation overlay
 - **Wake lock**: Screen stays on during active calls; audio continues when screen is manually turned off (Android partial wake lock, iOS idle timer disabled)
 - **Independent audio routing**: Select input and output audio devices separately (e.g., Bluetooth mic + phone speaker)
-- **New Visio Mobile icon**: New branded app icon across all platforms
-- **In-call settings panel**: Tabbed bottom sheet for microphone/camera/notification settings during a call
+- **In-call settings panel**: Tabbed bottom sheet for microphone/camera/notification/background settings during a call
 - **Network resilience**: Automatic reconnection with UI banner (via LiveKit SDK)
 
 ## What's next
 
 - Official App store packaging (APK/IPA/DMG)
-- OIDC & ProConnect authentication
-- AI Services (stay tuned !)
+- Live subtitles (on-device Whisper)
+- Adaptive context modes (office/pedestrian/car)
+- Silent catch-up (join summary)
 
 ## Configuration
 
