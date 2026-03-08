@@ -91,7 +91,8 @@ class ContextDetector {
     private func reportBluetoothCarKit() {
         let route = AVAudioSession.sharedInstance().currentRoute
         let hasCarKit = route.outputs.contains { port in
-            port.portType == .bluetoothA2DP ||
+            // HFP and carAudio are car-specific profiles
+            // A2DP alone is typically headphones/earbuds, not a car
             port.portType == .bluetoothHFP ||
             port.portType == .carAudio
         }
