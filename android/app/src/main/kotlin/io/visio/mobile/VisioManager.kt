@@ -411,6 +411,38 @@ object VisioManager : VisioEventListener {
     }
 
     /**
+     * Called by ContextDetector when a Bluetooth audio device connects.
+     * Auto-routes audio if we're in an active call.
+     */
+    fun onBluetoothAudioDeviceConnected() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        Log.i("VisioManager", "Auto-routing audio to newly connected Bluetooth device")
+        scope.launch(Dispatchers.IO) {
+            routeAudioToBluetooth()
+        }
+    }
+
+    /**
+     * Called by ContextDetector when a Bluetooth audio device disconnects.
+     * Restores default routing if no other Bluetooth devices remain.
+     */
+    fun onBluetoothAudioDeviceDisconnected() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val hasBtDevice = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        if (!hasBtDevice) {
+            Log.i("VisioManager", "No more Bluetooth audio devices, restoring default routing")
+            scope.launch(Dispatchers.IO) {
+                restoreDefaultAudioRoute()
+            }
+        }
+    }
+
+    /**
      * Admit a waiting participant into the room (host action).
      */
     fun admitParticipant(participantId: String) {

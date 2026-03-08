@@ -70,6 +70,18 @@ class ContextDetector {
 
     @objc private func audioRouteChanged(_ notification: Notification) {
         reportBluetoothCarKit()
+        // Auto-route to Bluetooth when connected during a call
+        let route = AVAudioSession.sharedInstance().currentRoute
+        let hasBluetooth = route.outputs.contains { port in
+            port.portType == .bluetoothA2DP ||
+            port.portType == .bluetoothHFP ||
+            port.portType == .bluetoothLE
+        }
+        if hasBluetooth {
+            DispatchQueue.main.async {
+                VisioManager.shared.routeAudioToBluetooth()
+            }
+        }
     }
 
     @objc private func audioInterrupted(_ notification: Notification) {

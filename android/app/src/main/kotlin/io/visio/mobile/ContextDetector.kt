@@ -148,10 +148,30 @@ class ContextDetector(private val context: Context) {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
                 Log.d(TAG, "Audio devices added: ${addedDevices.map { "${it.productName}(${it.type})" }}")
                 reportBluetoothCarKit()
+                // Auto-route to newly connected Bluetooth audio device
+                val btDevice = addedDevices.firstOrNull { device ->
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                }
+                if (btDevice != null) {
+                    Log.i(TAG, "Bluetooth audio device connected: ${btDevice.productName}, auto-routing")
+                    VisioManager.onBluetoothAudioDeviceConnected()
+                }
             }
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                 Log.d(TAG, "Audio devices removed: ${removedDevices.map { "${it.productName}(${it.type})" }}")
                 reportBluetoothCarKit()
+                // Check if removed device was Bluetooth audio
+                val wasBt = removedDevices.any { device ->
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                }
+                if (wasBt) {
+                    Log.i(TAG, "Bluetooth audio device disconnected, restoring default routing")
+                    VisioManager.onBluetoothAudioDeviceDisconnected()
+                }
             }
         }
         audioManager.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))

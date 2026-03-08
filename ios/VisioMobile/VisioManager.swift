@@ -548,7 +548,7 @@ class VisioManager: ObservableObject {
 
     // MARK: - Audio Routing
 
-    private func routeAudioToBluetooth() {
+    func routeAudioToBluetooth() {
         let session = AVAudioSession.sharedInstance()
         if let btInput = session.availableInputs?.first(where: { port in
             port.portType == .bluetoothHFP || port.portType == .bluetoothA2DP
