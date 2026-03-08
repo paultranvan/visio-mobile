@@ -59,10 +59,20 @@ class ContextDetector {
             name: AVAudioSession.routeChangeNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(audioInterrupted),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
         reportBluetoothCarKit()
     }
 
     @objc private func audioRouteChanged(_ notification: Notification) {
+        reportBluetoothCarKit()
+    }
+
+    @objc private func audioInterrupted(_ notification: Notification) {
         reportBluetoothCarKit()
     }
 
