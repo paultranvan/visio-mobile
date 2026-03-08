@@ -16,6 +16,24 @@ struct SettingsView: View {
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
 
+    /// Normalizes a meet instance by stripping protocol prefixes and trailing slashes.
+    /// Converts "https://meet.example.com/" to "meet.example.com".
+    private func normalizeInstance(_ input: String) -> String {
+        var result = input
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if result.hasPrefix("https://") {
+            result = String(result.dropFirst(8))
+        } else if result.hasPrefix("http://") {
+            result = String(result.dropFirst(7))
+        }
+        // Remove trailing slashes and any path
+        if let slashIndex = result.firstIndex(of: "/") {
+            result = String(result[..<slashIndex])
+        }
+        return result
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -72,9 +90,9 @@ struct SettingsView: View {
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
                         Button {
-                            let trimmed = newInstance.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                            if !trimmed.isEmpty && !meetInstances.contains(trimmed) {
-                                meetInstances.append(trimmed)
+                            let normalized = normalizeInstance(newInstance)
+                            if !normalized.isEmpty && !meetInstances.contains(normalized) {
+                                meetInstances.append(normalized)
                                 newInstance = ""
                             }
                         } label: {

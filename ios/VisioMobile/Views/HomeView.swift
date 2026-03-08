@@ -284,6 +284,22 @@ private struct ServerPickerWithOidc: View {
 
     @State private var selectedInstance: String? = nil
 
+    /// Normalizes a meet instance by stripping protocol prefixes and trailing slashes.
+    private func normalizeInstance(_ input: String) -> String {
+        var result = input
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if result.hasPrefix("https://") {
+            result = String(result.dropFirst(8))
+        } else if result.hasPrefix("http://") {
+            result = String(result.dropFirst(7))
+        }
+        if let slashIndex = result.firstIndex(of: "/") {
+            result = String(result[..<slashIndex])
+        }
+        return result
+    }
+
     var body: some View {
         NavigationStack {
             if let instance = selectedInstance {
@@ -316,9 +332,9 @@ private struct ServerPickerWithOidc: View {
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
                         Button(Strings.t("home.connect", lang: lang)) {
-                            let trimmed = customServer.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty {
-                                selectedInstance = trimmed
+                            let normalized = normalizeInstance(customServer)
+                            if !normalized.isEmpty {
+                                selectedInstance = normalized
                             }
                         }
                         .disabled(customServer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
