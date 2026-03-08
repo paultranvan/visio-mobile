@@ -60,7 +60,7 @@ Visio Mobile supports authentication via **OpenID Connect** (OIDC), compatible w
 | **Trusted** | Only authenticated users can join; anonymous users enter a waiting room where the host can admit or deny them | Host: Yes · Guests: No (waiting room) |
 | **Restricted** | Invitation only — only users explicitly added as members by the room creator can join | Yes (all participants) |
 
-**Server prerequisites for restricted rooms:** The Meet server must support the `/api/v1.0/rooms/<id>/accesses/` endpoint for managing room membership. This is available in La Suite Meet ≥ 1.7.
+**Server prerequisites for restricted rooms:** The Meet server must support the `/api/v1.0/rooms/<id>/accesses/` endpoint for managing room membership (available in La Suite Meet ≥ 1.7). Additionally, user search for invitations requires the server setting `ALLOW_UNSECURE_USER_LISTING=True` to expose the `/api/v1.0/users/` endpoint.
 
 ### Session management
 
