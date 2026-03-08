@@ -96,9 +96,38 @@ jobs:
           RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: bundle exec fastlane distribute
 
+      - name: Find built APK
+        id: find-apk
+        if: always()
+        run: |
+          APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
+          if [ -n "$APK" ]; then
+            echo "apk_path=$APK" >> $GITHUB_OUTPUT
+            echo "apk_name=$(basename $APK)" >> $GITHUB_OUTPUT
+            echo "Found APK: $APK"
+          else
+            echo "No APK found"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
-        if: always()
+        if: steps.find-apk.outputs.apk_path != ''
         with:
           name: android-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: ${{ steps.find-apk.outputs.apk_path }}
+
+      - name: Create GitHub Release with APK
+        if: steps.find-apk.outputs.apk_path != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          NOTES="${{ github.event.inputs.release_notes }}"
+          if [ -z "$NOTES" ]; then
+            NOTES="Build #${{ github.run_number }} from $(date -u +%Y-%m-%d)"
+          fi
+          gh release create "$TAG" \
+            "${{ steps.find-apk.outputs.apk_path }}" \
+            --title "Android Build #${{ github.run_number }}" \
+            --notes "$NOTES" \
+            --prerelease
