@@ -163,5 +163,9 @@
   "restricted.member": "Lid",
   "restricted.alreadyInvited": "Al uitgenodigd",
   "restricted.searchUnavailable": "Gebruikers zoeken is niet beschikbaar op deze server",
-  "restricted.noResults": "Geen gebruikers gevonden"
+  "restricted.noResults": "Geen gebruikers gevonden",
+  "notification.channelName": "Actief gesprek",
+  "notification.channelDescription": "Wordt weergegeven wanneer er een gesprek gaande is",
+  "notification.title": "Visio Mobile",
+  "notification.text": "Gesprek bezig"
 }

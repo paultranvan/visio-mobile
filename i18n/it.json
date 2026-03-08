@@ -163,5 +163,9 @@
   "restricted.member": "Membro",
   "restricted.alreadyInvited": "Già invitato",
   "restricted.searchUnavailable": "La ricerca utenti non è disponibile su questo server",
-  "restricted.noResults": "Nessun utente trovato"
+  "restricted.noResults": "Nessun utente trovato",
+  "notification.channelName": "Chiamata attiva",
+  "notification.channelDescription": "Viene mostrato quando è in corso una chiamata",
+  "notification.title": "Visio Mobile",
+  "notification.text": "Chiamata in corso"
 }
