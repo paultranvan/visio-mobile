@@ -548,36 +548,8 @@ struct CallView: View {
 
             // Main control bar
             HStack(spacing: isLargeButtons ? 16 : 8) {
-                // Mic toggle + audio route chevron (grouped)
-                if manager.adaptiveMode == .office {
-                    // Office: mic button with audio route chevron
-                    HStack(spacing: 1) {
-                        Button {
-                            manager.toggleMic()
-                        } label: {
-                            Image(systemName: manager.isMicEnabled ? "mic.fill" : "mic.slash.fill")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(.white)
-                                .frame(width: 38, height: 38)
-                                .background(manager.isMicEnabled ? VisioColors.primaryDark100 : VisioColors.error200)
-                                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8, bottomTrailingRadius: 2, topTrailingRadius: 2))
-                        }
-                        .accessibilityLabel(Strings.t(manager.isMicEnabled ? "control.mute" : "control.unmute", lang: lang))
-
-                        Button {
-                            showAudioDevices = true
-                        } label: {
-                            Image(systemName: "chevron.up")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 22, height: 38)
-                                .background(VisioColors.primaryDark100)
-                                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 2, bottomLeadingRadius: 2, bottomTrailingRadius: 8, topTrailingRadius: 8))
-                        }
-                        .accessibilityLabel(Strings.t("control.audioDevices", lang: lang))
-                    }
-                } else {
-                    // Pedestrian / Car: large mic button (no chevron)
+                // Mic toggle + audio route chevron (grouped) — all modes
+                HStack(spacing: 1) {
                     Button {
                         manager.toggleMic()
                     } label: {
@@ -586,9 +558,31 @@ struct CallView: View {
                             .foregroundStyle(.white)
                             .frame(width: buttonSize, height: buttonSize)
                             .background(manager.isMicEnabled ? VisioColors.primaryDark100 : VisioColors.error200)
-                            .clipShape(RoundedRectangle(cornerRadius: buttonCornerRadius))
+                            .clipShape(UnevenRoundedRectangle(
+                                topLeadingRadius: buttonCornerRadius,
+                                bottomLeadingRadius: buttonCornerRadius,
+                                bottomTrailingRadius: 2,
+                                topTrailingRadius: 2
+                            ))
                     }
                     .accessibilityLabel(Strings.t(manager.isMicEnabled ? "control.mute" : "control.unmute", lang: lang))
+
+                    Button {
+                        showAudioDevices = true
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: isLargeButtons ? 16 : 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: isLargeButtons ? 40 : 22, height: buttonSize)
+                            .background(VisioColors.primaryDark100)
+                            .clipShape(UnevenRoundedRectangle(
+                                topLeadingRadius: 2,
+                                bottomLeadingRadius: 2,
+                                bottomTrailingRadius: buttonCornerRadius,
+                                topTrailingRadius: buttonCornerRadius
+                            ))
+                    }
+                    .accessibilityLabel(Strings.t("control.audioDevices", lang: lang))
                 }
 
                 // Camera toggle — office and pedestrian only
