@@ -1037,18 +1037,20 @@ private fun ControlBar(
                         modifier = Modifier.size(iconSize),
                     )
                 }
-                if (adaptiveMode == AdaptiveMode.OFFICE) {
-                    IconButton(
-                        onClick = onAudioPicker,
-                        modifier = Modifier.size(22.dp, 38.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_arrow_up_s_line),
-                            contentDescription = Strings.t("control.audioDevices", lang),
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
+                // Audio device picker chevron — visible in all modes
+                val chevronHeight = if (isLargeButtons) 96.dp else 38.dp
+                val chevronWidth = if (isLargeButtons) 40.dp else 22.dp
+                val chevronIconSize = if (isLargeButtons) 24.dp else 14.dp
+                IconButton(
+                    onClick = onAudioPicker,
+                    modifier = Modifier.size(chevronWidth, chevronHeight),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_arrow_up_s_line),
+                        contentDescription = Strings.t("control.audioDevices", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(chevronIconSize),
+                    )
                 }
             }
 
