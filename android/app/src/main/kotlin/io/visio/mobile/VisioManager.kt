@@ -110,6 +110,11 @@ object VisioManager : VisioEventListener {
     // Track whether camera was on before CAR mode forced it off
     private var cameraWasEnabledBeforeCar = false
 
+    // Grace period: don't let CAR mode disable camera right after connection
+    // (gives camera-on-join time to activate)
+    private var connectionTimestampMs = 0L
+    private val CONNECTION_GRACE_MS = 5000L  // 5 seconds after connect
+
     // Track previous audio device to restore after car mode
     private var previousAudioDevice: AudioDeviceInfo? = null
 
@@ -470,13 +475,20 @@ object VisioManager : VisioEventListener {
     fun onBluetoothAudioDeviceDisconnected() {
         if (_connectionState.value !is ConnectionState.Connected) return
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val hasBtDevice = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { device ->
+        val remainingBtDevice = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { device ->
             device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
             device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
             device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
         }
-        if (!hasBtDevice) {
-            Log.i("VisioManager", "No more Bluetooth audio devices, restoring default routing")
+        if (remainingBtDevice != null) {
+            // Another BT device still connected — route to it
+            Log.i("VisioManager", "Switching audio to remaining BT device: ${remainingBtDevice.productName}")
+            scope.launch(Dispatchers.IO) {
+                routeAudioToBluetooth()
+            }
+        } else {
+            // No BT devices left — restore to phone speaker/mic
+            Log.i("VisioManager", "No more Bluetooth audio devices, restoring phone speaker/mic")
             scope.launch(Dispatchers.IO) {
                 restoreDefaultAudioRoute()
             }
@@ -648,6 +660,7 @@ object VisioManager : VisioEventListener {
                 _connectionState.value = event.state
                 when (event.state) {
                     is ConnectionState.Connected -> {
+                        connectionTimestampMs = System.currentTimeMillis()
                         refreshParticipants()
                         refreshChatMessages()
                         CallForegroundService.start(appContext)
@@ -760,6 +773,13 @@ object VisioManager : VisioEventListener {
                 Log.d("VISIO", "Adaptive mode changed: $previousMode -> ${event.mode}")
                 if (event.mode == uniffi.visio.AdaptiveMode.CAR) {
                     scope.launch(Dispatchers.IO) {
+                        // If we just connected, wait for camera-on-join to settle
+                        val elapsed = System.currentTimeMillis() - connectionTimestampMs
+                        if (elapsed < CONNECTION_GRACE_MS) {
+                            val delayMs = CONNECTION_GRACE_MS - elapsed
+                            Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
+                            kotlinx.coroutines.delay(delayMs)
+                        }
                         cameraWasEnabledBeforeCar = client.isCameraEnabled()
                         if (cameraWasEnabledBeforeCar) {
                             stopCameraCapture()
