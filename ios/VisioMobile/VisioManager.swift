@@ -54,6 +54,8 @@ class VisioManager: ObservableObject {
     private var contextDetector: ContextDetector?
     private var reactionIdCounter: Int64 = 0
     private var cameraWasEnabledBeforeCar = false
+    private var connectionTimestamp: Date?
+    private let connectionGraceSeconds: TimeInterval = 5.0
 
     // MARK: - Init
 
@@ -588,6 +590,9 @@ extension VisioManager: VisioEventListener {
             switch event {
             case .connectionStateChanged(let state):
                 self.connectionState = state
+                if case .connected = state {
+                    self.connectionTimestamp = Date()
+                }
 
             case .participantJoined(let info):
                 if let idx = self.participants.firstIndex(where: { $0.sid == info.sid }) {
@@ -691,7 +696,19 @@ extension VisioManager: VisioEventListener {
                 if mode == .car {
                     self.cameraWasEnabledBeforeCar = self.isCameraEnabled
                     if self.isCameraEnabled {
-                        self.toggleCamera()
+                        // Grace period: don't disable camera if we just connected
+                        let grace = self.connectionTimestamp.map { Date().timeIntervalSince($0) } ?? 999
+                        if grace < self.connectionGraceSeconds {
+                            // Delay camera disable to let camera-on-join complete
+                            DispatchQueue.main.asyncAfter(deadline: .now() + self.connectionGraceSeconds) {
+                                if self.adaptiveMode == .car {
+                                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                                    if self.isCameraEnabled { self.toggleCamera() }
+                                }
+                            }
+                        } else {
+                            self.toggleCamera()
+                        }
                     }
                     self.routeAudioToBluetooth()
                 } else if previousMode == .car {
