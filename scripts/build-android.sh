@@ -25,8 +25,12 @@ rm -rf android/app/src/main/jniLibs/arm64-v8a
 mkdir -p android/app/src/main/jniLibs/arm64-v8a
 cp target/aarch64-linux-android/release/libvisio_ffi.so android/app/src/main/jniLibs/arm64-v8a/
 cp target/aarch64-linux-android/release/libvisio_video.so android/app/src/main/jniLibs/arm64-v8a/
-cp "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" \
-    android/app/src/main/jniLibs/arm64-v8a/
+LIBCXX=$(find "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" -path "*/aarch64-linux-android/libc++_shared.so" | head -1)
+if [ -z "$LIBCXX" ]; then
+    echo "ERROR: libc++_shared.so not found in NDK"
+    exit 1
+fi
+cp "$LIBCXX" android/app/src/main/jniLibs/arm64-v8a/
 
 echo "==> Generating Kotlin UniFFI bindings..."
 "$REPO_ROOT/scripts/generate-bindings.sh" kotlin
