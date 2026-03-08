@@ -82,8 +82,9 @@ impl AuthService {
 
         tracing::info!("Meet API response body: {}", body);
 
-        let data: MeetApiResponse = serde_json::from_str(&body)
-            .map_err(|e| VisioError::Auth(format!("invalid Meet API response: {e} — body: {body}")))?;
+        let data: MeetApiResponse = serde_json::from_str(&body).map_err(|e| {
+            VisioError::Auth(format!("invalid Meet API response: {e} — body: {body}"))
+        })?;
 
         let lk = data.livekit.ok_or_else(|| {
             VisioError::Auth("Room is not ready yet — waiting for host approval".to_string())

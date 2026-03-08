@@ -250,11 +250,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                         )
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        autoCorrectEnabled = false,
-                        capitalization = KeyboardCapitalization.None,
-                    ),
+                    keyboardOptions =
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            autoCorrectEnabled = false,
+                            capitalization = KeyboardCapitalization.None,
+                        ),
                     modifier = Modifier.weight(1f),
                     colors =
                         TextFieldDefaults.colors(

@@ -14,7 +14,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 
 class OidcLoginActivity : ComponentActivity() {
-
     companion object {
         const val EXTRA_MEET_INSTANCE = "meet_instance"
         private const val TAG = "OidcLogin"
@@ -48,36 +47,48 @@ class OidcLoginActivity : ComponentActivity() {
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(
-                view: WebView,
-                request: WebResourceRequest,
-            ): Boolean {
-                Log.d(TAG, "shouldOverrideUrlLoading: ${request.url}")
-                return false
-            }
+        webView.webViewClient =
+            object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest,
+                ): Boolean {
+                    Log.d(TAG, "shouldOverrideUrlLoading: ${request.url}")
+                    return false
+                }
 
-            override fun onPageFinished(view: WebView, url: String) {
-                super.onPageFinished(view, url)
-                Log.d(TAG, "onPageFinished: $url")
-                if (!cookieExtracted && url.startsWith(returnTo) && !url.contains("/api/v1.0/authenticate")) {
-                    tryExtractSessionCookie(meetInstance)
+                override fun onPageFinished(
+                    view: WebView,
+                    url: String,
+                ) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "onPageFinished: $url")
+                    if (!cookieExtracted && url.startsWith(returnTo) && !url.contains("/api/v1.0/authenticate")) {
+                        tryExtractSessionCookie(meetInstance)
+                    }
+                }
+
+                override fun onReceivedSslError(
+                    view: WebView,
+                    handler: SslErrorHandler,
+                    error: SslError,
+                ) {
+                    Log.e(TAG, "SSL error for ${error.url}: ${error.primaryError}")
+                    handler.cancel()
+                    showErrorAndFinish("SSL certificate error for ${error.url?.substringBefore("/", error.url.toString()) ?: "server"}")
+                }
+
+                override fun onReceivedError(
+                    view: WebView,
+                    request: WebResourceRequest,
+                    error: WebResourceError,
+                ) {
+                    if (request.isForMainFrame) {
+                        Log.e(TAG, "WebView error: ${error.description} (${error.errorCode})")
+                        showErrorAndFinish("Connection error: ${error.description}")
+                    }
                 }
             }
-
-            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-                Log.e(TAG, "SSL error for ${error.url}: ${error.primaryError}")
-                handler.cancel()
-                showErrorAndFinish("SSL certificate error for ${error.url?.substringBefore("/", error.url.toString()) ?: "server"}")
-            }
-
-            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                if (request.isForMainFrame) {
-                    Log.e(TAG, "WebView error: ${error.description} (${error.errorCode})")
-                    showErrorAndFinish("Connection error: ${error.description}")
-                }
-            }
-        }
 
         setContentView(webView)
         webView.loadUrl(authUrl)
@@ -98,10 +109,11 @@ class OidcLoginActivity : ComponentActivity() {
             return
         }
 
-        val sessionId = allCookies.split(";")
-            .map { it.trim() }
-            .firstOrNull { it.startsWith("sessionid=") }
-            ?.substringAfter("sessionid=")
+        val sessionId =
+            allCookies.split(";")
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("sessionid=") }
+                ?.substringAfter("sessionid=")
 
         if (sessionId != null) {
             Log.d(TAG, "Session cookie extracted successfully")
