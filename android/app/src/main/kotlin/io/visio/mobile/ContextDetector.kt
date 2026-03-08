@@ -31,6 +31,7 @@ class ContextDetector(private val context: Context) {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var accelerometerListener: SensorEventListener? = null
     private var audioDeviceCallback: AudioDeviceCallback? = null
+    private var bluetoothReceiver: android.content.BroadcastReceiver? = null
 
     private var lastReportedMotion = false
     private var lastSignificantMotionMs = 0L  // last time we saw a significant accel event
@@ -54,9 +55,11 @@ class ContextDetector(private val context: Context) {
         networkCallback?.let { connectivityManager.unregisterNetworkCallback(it) }
         accelerometerListener?.let { sensorManager.unregisterListener(it) }
         audioDeviceCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
+        bluetoothReceiver?.let { context.unregisterReceiver(it) }
         networkCallback = null
         accelerometerListener = null
         audioDeviceCallback = null
+        bluetoothReceiver = null
     }
 
     private fun startNetworkMonitoring() {
@@ -153,6 +156,30 @@ class ContextDetector(private val context: Context) {
         }
         audioManager.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
         audioDeviceCallback = callback
+
+        // BroadcastReceiver for reliable Bluetooth disconnect detection
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: android.content.Context?, intent: android.content.Intent?) {
+                when (intent?.action) {
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED,
+                    android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                        val device = intent.getParcelableExtra<android.bluetooth.BluetoothDevice>(
+                            android.bluetooth.BluetoothDevice.EXTRA_DEVICE
+                        )
+                        Log.d(TAG, "Bluetooth ACL ${intent.action}: ${device?.name}")
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            reportBluetoothCarKit()
+                        }, 500)
+                    }
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+        }
+        context.registerReceiver(receiver, filter)
+        bluetoothReceiver = receiver
     }
 
     private fun reportBluetoothCarKit() {
