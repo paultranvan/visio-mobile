@@ -233,8 +233,11 @@ class ContextDetector(private val context: Context) {
                                 val name = device.name ?: "unknown"
                                 Log.d(TAG, "BT device: name=$name class=0x${deviceClass.toString(16)} major=0x${majorClass.toString(16)}")
 
-                                val isCarAudio = deviceClass == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO ||
-                                    deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE
+                                // Detect car audio: any connected A2DP/HEADSET device that is NOT
+                                // a typical wearable headset or headphones
+                                val isWearable = deviceClass == BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET ||
+                                    deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES
+                                val isCarAudio = !isWearable  // Everything else (car, uncategorized, loudspeaker, etc.)
                                 if (isCarAudio) {
                                     hasCarKit = true
                                     Log.d(TAG, "Car audio device detected: $name")
