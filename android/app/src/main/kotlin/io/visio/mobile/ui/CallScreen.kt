@@ -7,11 +7,17 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,7 +42,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import android.widget.Toast
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,11 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -578,10 +578,11 @@ fun CallScreen(
             onView = {
                 showParticipantList = true
             },
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding()
-                .padding(top = 8.dp, start = 16.dp, end = 16.dp),
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 8.dp, start = 16.dp, end = 16.dp),
         )
     }
 }
@@ -602,18 +603,20 @@ private fun LobbyWaitingBanner(
     ) {
         if (waitingParticipants.isNotEmpty()) {
             val first = waitingParticipants.first()
-            val message = if (waitingParticipants.size == 1) {
-                Strings.t("lobby.joinRequest", lang).replace("{{name}}", first.username)
-            } else {
-                Strings.t("lobby.joinRequest", lang).replace("{{name}}", first.username) +
-                    " (+${waitingParticipants.size - 1})"
-            }
+            val message =
+                if (waitingParticipants.size == 1) {
+                    Strings.t("lobby.joinRequest", lang).replace("{{name}}", first.username)
+                } else {
+                    Strings.t("lobby.joinRequest", lang).replace("{{name}}", first.username) +
+                        " (+${waitingParticipants.size - 1})"
+                }
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(12.dp))
-                    .background(VisioColors.PrimaryDark75, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .shadow(8.dp, RoundedCornerShape(12.dp))
+                        .background(VisioColors.PrimaryDark75, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -627,9 +630,10 @@ private fun LobbyWaitingBanner(
                 )
                 Button(
                     onClick = { onAdmit(first) },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = VisioColors.Primary500,
-                    ),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = VisioColors.Primary500,
+                        ),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.height(32.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
@@ -1235,9 +1239,10 @@ private fun WaitingScreen(onCancel: () -> Unit) {
     val lang = VisioManager.currentLang
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(VisioColors.PrimaryDark50),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(VisioColors.PrimaryDark50),
         contentAlignment = Alignment.Center,
     ) {
         Column(

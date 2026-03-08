@@ -1,6 +1,5 @@
 package io.visio.mobile.auth
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
@@ -8,19 +7,25 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 class OidcAuthManager(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    private val masterKey =
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "visio_auth",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs =
+        EncryptedSharedPreferences.create(
+            context,
+            "visio_auth",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
 
-    fun launchOidcFlow(launcher: ActivityResultLauncher<Intent>, context: Context, meetInstance: String) {
+    fun launchOidcFlow(
+        launcher: ActivityResultLauncher<Intent>,
+        context: Context,
+        meetInstance: String,
+    ) {
         val intent = Intent(context, OidcLoginActivity::class.java)
         intent.putExtra(OidcLoginActivity.EXTRA_MEET_INSTANCE, meetInstance)
         launcher.launch(intent)

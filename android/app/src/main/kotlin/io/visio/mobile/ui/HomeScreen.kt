@@ -1,7 +1,12 @@
 package io.visio.mobile.ui
 
+import android.app.Activity
+import android.content.Intent
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,17 +15,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,7 +40,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,27 +54,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.app.Activity
-import android.content.Intent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +74,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.RoomValidationResult
 import uniffi.visio.UserSearchResult
-import androidx.compose.material.icons.filled.Close
 
 private const val TAG = "HomeScreen"
 
@@ -84,17 +83,18 @@ fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
-    val oidcLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val cookie = result.data?.getStringExtra("sessionid")
-            val meetInstance = result.data?.getStringExtra("meet_instance")
-            if (cookie != null && meetInstance != null) {
-                VisioManager.onAuthCookieReceived(cookie, meetInstance)
+    val oidcLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val cookie = result.data?.getStringExtra("sessionid")
+                val meetInstance = result.data?.getStringExtra("meet_instance")
+                if (cookie != null && meetInstance != null) {
+                    VisioManager.onAuthCookieReceived(cookie, meetInstance)
+                }
             }
         }
-    }
     var roomUrl by remember { mutableStateOf("") }
     var resolvedRoomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -306,11 +306,12 @@ fun HomeScreen(
                 )
             },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Uri,
-                autoCorrectEnabled = false,
-                capitalization = KeyboardCapitalization.None,
-            ),
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    autoCorrectEnabled = false,
+                    capitalization = KeyboardCapitalization.None,
+                ),
             modifier = Modifier.fillMaxWidth(),
             colors =
                 TextFieldDefaults.colors(
@@ -447,32 +448,35 @@ private fun AuthenticatedCard(
     lang: String,
     onLogout: () -> Unit,
 ) {
-    val initials = displayName
-        .split(" ")
-        .filter { it.isNotEmpty() }
-        .take(2)
-        .joinToString("") { it.first().uppercase() }
-        .ifEmpty { email.firstOrNull()?.uppercase()?.toString() ?: "?" }
+    val initials =
+        displayName
+            .split(" ")
+            .filter { it.isNotEmpty() }
+            .take(2)
+            .joinToString("") { it.first().uppercase() }
+            .ifEmpty { email.firstOrNull()?.uppercase()?.toString() ?: "?" }
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
-                shape = RoundedCornerShape(16.dp),
-            )
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    color = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Avatar circle with initials
         Box(
-            modifier = Modifier
-                .size(44.dp)
-                .background(
-                    color = VisioColors.Primary500,
-                    shape = RoundedCornerShape(22.dp),
-                ),
+            modifier =
+                Modifier
+                    .size(44.dp)
+                    .background(
+                        color = VisioColors.Primary500,
+                        shape = RoundedCornerShape(22.dp),
+                    ),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -545,9 +549,10 @@ private fun CreateRoomDialog(
         delay(300)
         try {
             val results = VisioManager.client.searchUsers(searchQuery)
-            searchResults = results.filter { user ->
-                invitedUsers.none { it.id == user.id }
-            }
+            searchResults =
+                results.filter { user ->
+                    invitedUsers.none { it.id == user.id }
+                }
         } catch (_: Exception) {
             searchResults = emptyList()
         }
@@ -613,14 +618,15 @@ private fun CreateRoomDialog(
                         // Search results dropdown
                         searchResults.forEach { user ->
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        invitedUsers = invitedUsers + user
-                                        searchQuery = ""
-                                        searchResults = emptyList()
-                                    }
-                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            invitedUsers = invitedUsers + user
+                                            searchQuery = ""
+                                            searchResults = emptyList()
+                                        }
+                                        .padding(vertical = 6.dp, horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -683,19 +689,32 @@ private fun CreateRoomDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(Strings.t("settings.incall.roomLink", lang), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                        Text(
+                            Strings.t("settings.incall.roomLink", lang),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f),
+                        )
                         IconButton(onClick = { clipboardManager.setText(AnnotatedString(createdUrl!!)) }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = Strings.t("settings.incall.copied", lang), modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = Strings.t("settings.incall.copied", lang),
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                         IconButton(onClick = {
-                            val sendIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, createdUrl)
-                                type = "text/plain"
-                            }
+                            val sendIntent =
+                                Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, createdUrl)
+                                    type = "text/plain"
+                                }
                             context.startActivity(Intent.createChooser(sendIntent, null))
                         }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Share, contentDescription = Strings.t("settings.incall.share", lang), modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = Strings.t("settings.incall.share", lang),
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     }
                     OutlinedTextField(
@@ -712,19 +731,32 @@ private fun CreateRoomDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Smartphone, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(Strings.t("settings.incall.deepLink", lang), style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                        Text(
+                            Strings.t("settings.incall.deepLink", lang),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f),
+                        )
                         IconButton(onClick = { clipboardManager.setText(AnnotatedString(deepLink)) }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = Strings.t("settings.incall.copied", lang), modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = Strings.t("settings.incall.copied", lang),
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                         IconButton(onClick = {
-                            val sendIntent = Intent().apply {
-                                action = Intent.ACTION_SEND
-                                putExtra(Intent.EXTRA_TEXT, deepLink)
-                                type = "text/plain"
-                            }
+                            val sendIntent =
+                                Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, deepLink)
+                                    type = "text/plain"
+                                }
                             context.startActivity(Intent.createChooser(sendIntent, null))
                         }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Share, contentDescription = Strings.t("settings.incall.share", lang), modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = Strings.t("settings.incall.share", lang),
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
                     }
                     OutlinedTextField(
@@ -746,17 +778,19 @@ private fun CreateRoomDialog(
                         error = null
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                val result = VisioManager.client.createRoom(
-                                    "https://$meetInstance",
-                                    "",
-                                    accessLevel,
-                                )
+                                val result =
+                                    VisioManager.client.createRoom(
+                                        "https://$meetInstance",
+                                        "",
+                                        accessLevel,
+                                    )
                                 // Add accesses for invited users
                                 if (accessLevel == "restricted") {
                                     for (user in invitedUsers) {
                                         try {
                                             VisioManager.client.addAccess(user.id, result.id)
-                                        } catch (_: Exception) { }
+                                        } catch (_: Exception) {
+                                        }
                                     }
                                 }
                                 withContext(Dispatchers.Main) {
@@ -775,8 +809,11 @@ private fun CreateRoomDialog(
                     enabled = !creating,
                 ) {
                     Text(
-                        if (creating) Strings.t("home.createRoom.creating", lang)
-                        else Strings.t("home.createRoom.create", lang)
+                        if (creating) {
+                            Strings.t("home.createRoom.creating", lang)
+                        } else {
+                            Strings.t("home.createRoom.create", lang)
+                        },
                     )
                 }
             } else {
@@ -812,10 +849,11 @@ private fun ServerPickerDialog(
                         text = instance,
                         style = MaterialTheme.typography.bodyLarge,
                         color = VisioColors.Primary500,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(instance) }
-                            .padding(vertical = 12.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(instance) }
+                                .padding(vertical = 12.dp),
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -825,11 +863,12 @@ private fun ServerPickerDialog(
                     label = { Text(Strings.t("home.serverPicker.custom", lang)) },
                     placeholder = { Text("meet.example.com") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        autoCorrectEnabled = false,
-                        capitalization = KeyboardCapitalization.None,
-                    ),
+                    keyboardOptions =
+                        KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            autoCorrectEnabled = false,
+                            capitalization = KeyboardCapitalization.None,
+                        ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

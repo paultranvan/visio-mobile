@@ -112,9 +112,10 @@ fun ParticipantListSheet(
             )
             waitingParticipants.forEach { participant ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -127,9 +128,10 @@ fun ParticipantListSheet(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { VisioManager.admitParticipant(participant.id) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = VisioColors.Primary500,
-                            ),
+                            colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor = VisioColors.Primary500,
+                                ),
                         ) {
                             Text(Strings.t("lobby.admit", lang))
                         }

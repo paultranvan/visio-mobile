@@ -14,20 +14,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -46,20 +46,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -677,7 +677,10 @@ private fun NotificationRow(
 }
 
 @Composable
-private fun RoomInfoTab(roomUrl: String, lang: String) {
+private fun RoomInfoTab(
+    roomUrl: String,
+    lang: String,
+) {
     val context = LocalContext.current
     val displayUrl = roomUrl.removePrefix("https://").removePrefix("http://")
     val deepLink = "visio://$displayUrl"
@@ -692,7 +695,12 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Language, contentDescription = null, tint = VisioColors.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(Strings.t("settings.incall.roomLink", lang), color = VisioColors.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+            Text(
+                Strings.t("settings.incall.roomLink", lang),
+                color = VisioColors.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
             IconButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Room URL", roomUrl))
@@ -706,10 +714,11 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
                 )
             }
             IconButton(onClick = {
-                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
-                }
+                val shareIntent =
+                    android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
+                    }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {
                 Icon(
@@ -727,11 +736,12 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
             singleLine = true,
             textStyle = MaterialTheme.typography.bodySmall.copy(color = VisioColors.White),
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = VisioColors.Primary500,
-                unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
-                cursorColor = VisioColors.Primary500,
-            ),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VisioColors.Primary500,
+                    unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
+                    cursorColor = VisioColors.Primary500,
+                ),
         )
 
         Spacer(Modifier.height(8.dp))
@@ -740,7 +750,12 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.PhoneAndroid, contentDescription = null, tint = VisioColors.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
-            Text(Strings.t("settings.incall.deepLink", lang), color = VisioColors.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
+            Text(
+                Strings.t("settings.incall.deepLink", lang),
+                color = VisioColors.White.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
             IconButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Deep Link", deepLink))
@@ -754,10 +769,11 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
                 )
             }
             IconButton(onClick = {
-                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_TEXT, deepLink)
-                }
+                val shareIntent =
+                    android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, deepLink)
+                    }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {
                 Icon(
@@ -775,11 +791,12 @@ private fun RoomInfoTab(roomUrl: String, lang: String) {
             singleLine = true,
             textStyle = MaterialTheme.typography.bodySmall.copy(color = VisioColors.White),
             modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = VisioColors.Primary500,
-                unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
-                cursorColor = VisioColors.Primary500,
-            ),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VisioColors.Primary500,
+                    unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
+                    cursorColor = VisioColors.Primary500,
+                ),
         )
     }
 }
@@ -806,9 +823,10 @@ private fun MembersTab(lang: String) {
     }
 
     Column(
-        modifier = Modifier
-            .padding(8.dp)
-            .verticalScroll(rememberScrollState()),
+        modifier =
+            Modifier
+                .padding(8.dp)
+                .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SectionHeader(Strings.t("restricted.members", lang))
@@ -821,25 +839,27 @@ private fun MembersTab(lang: String) {
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             textStyle = MaterialTheme.typography.bodySmall.copy(color = VisioColors.White),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = VisioColors.Primary500,
-                unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
-                cursorColor = VisioColors.Primary500,
-            ),
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = VisioColors.Primary500,
+                    unfocusedBorderColor = VisioColors.White.copy(alpha = 0.3f),
+                    cursorColor = VisioColors.Primary500,
+                ),
         )
 
         // Search results
         searchResults.forEach { user ->
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        VisioManager.addAccessMember(user.id) {
-                            searchQuery = ""
-                            searchResults = emptyList()
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            VisioManager.addAccessMember(user.id) {
+                                searchQuery = ""
+                                searchResults = emptyList()
+                            }
                         }
-                    }
-                    .padding(vertical = 6.dp),
+                        .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -862,9 +882,10 @@ private fun MembersTab(lang: String) {
         // Current members
         accesses.forEach { access ->
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -882,10 +903,11 @@ private fun MembersTab(lang: String) {
                 if (access.role == "member") {
                     Button(
                         onClick = { VisioManager.removeAccessMember(access.id) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = VisioColors.Error500.copy(alpha = 0.2f),
-                            contentColor = VisioColors.Error500,
-                        ),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = VisioColors.Error500.copy(alpha = 0.2f),
+                                contentColor = VisioColors.Error500,
+                            ),
                         modifier = Modifier.height(32.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp),
                     ) {

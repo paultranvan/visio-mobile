@@ -22,9 +22,8 @@ import kotlinx.coroutines.withContext
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
-import uniffi.visio.SessionState
 import uniffi.visio.RoomAccess
-import uniffi.visio.UserSearchResult
+import uniffi.visio.SessionState
 import uniffi.visio.VisioClient
 import uniffi.visio.VisioEvent
 import uniffi.visio.VisioEventListener
@@ -211,7 +210,10 @@ object VisioManager : VisioEventListener {
         }
     }
 
-    fun onAuthCookieReceived(cookie: String, meetInstance: String) {
+    fun onAuthCookieReceived(
+        cookie: String,
+        meetInstance: String,
+    ) {
         authManager.saveCookie(cookie)
         // Auto-add the instance to saved Meet instances
         val instances = client.getMeetInstances().toMutableList()
@@ -236,13 +238,15 @@ object VisioManager : VisioEventListener {
     fun logout() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val instance = authenticatedMeetInstance.ifEmpty {
-                    client.getMeetInstances().firstOrNull() ?: ""
-                }
+                val instance =
+                    authenticatedMeetInstance.ifEmpty {
+                        client.getMeetInstances().firstOrNull() ?: ""
+                    }
                 if (instance.isNotEmpty()) {
                     client.logout("https://$instance")
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             authManager.clearCookie()
             // Clear WebView cookies so SSO session doesn't auto-reconnect
             withContext(Dispatchers.Main) {
@@ -390,7 +394,10 @@ object VisioManager : VisioEventListener {
         client.cancelLobby()
     }
 
-    fun setCurrentRoom(roomId: String?, accessLevel: String) {
+    fun setCurrentRoom(
+        roomId: String?,
+        accessLevel: String,
+    ) {
         currentRoomId = roomId
         _currentAccessLevel = accessLevel
     }
@@ -401,17 +408,22 @@ object VisioManager : VisioEventListener {
             try {
                 val accesses = client.listAccesses(roomId)
                 _roomAccesses.value = accesses
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            }
         }
     }
 
-    fun addAccessMember(userId: String, onDone: () -> Unit = {}) {
+    fun addAccessMember(
+        userId: String,
+        onDone: () -> Unit = {},
+    ) {
         val roomId = currentRoomId ?: return
         scope.launch {
             try {
                 client.addAccess(userId, roomId)
                 refreshAccesses()
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            }
             withContext(Dispatchers.Main) { onDone() }
         }
     }
@@ -421,7 +433,8 @@ object VisioManager : VisioEventListener {
             try {
                 client.removeAccess(accessId)
                 refreshAccesses()
-            } catch (_: Exception) { }
+            } catch (_: Exception) {
+            }
         }
     }
 
