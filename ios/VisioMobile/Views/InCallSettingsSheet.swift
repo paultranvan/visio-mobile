@@ -262,7 +262,7 @@ struct InCallSettingsSheet: View {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption)
                         }
-                        ShareLink(item: deepLink) {
+                        ShareLink(item: roomURL) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.caption)
                         }
