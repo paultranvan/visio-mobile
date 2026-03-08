@@ -210,18 +210,12 @@ impl LobbyService {
 
         let (instance, slug) = AuthService::parse_meet_url(meet_url)?;
 
-        let api_url = format!(
-            "https://{}/api/v1.0/rooms/{}/enter/",
-            instance, slug
-        );
+        let api_url = format!("https://{}/api/v1.0/rooms/{}/enter/", instance, slug);
 
         let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
         let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-        let cookie_header = format!(
-            "sessionid={}; csrftoken={}",
-            session_cookie, csrf_token
-        );
+        let cookie_header = format!("sessionid={}; csrftoken={}", session_cookie, csrf_token);
 
         let body = serde_json::json!({
             "participant_id": participant_id,
@@ -233,10 +227,7 @@ impl LobbyService {
             .post(&api_url)
             .header(reqwest::header::COOKIE, &cookie_header)
             .header("X-CSRFToken", &csrf_token)
-            .header(
-                "Referer",
-                format!("https://{}/{}/", instance, slug),
-            )
+            .header("Referer", format!("https://{}/{}/", instance, slug))
             .json(&body)
             .send()
             .await
@@ -331,8 +322,10 @@ mod tests {
 
     #[tokio::test]
     async fn request_entry_with_invalid_url_returns_error() {
-        assert!(LobbyService::request_entry("invalid-url", "Alice")
-            .await
-            .is_err());
+        assert!(
+            LobbyService::request_entry("invalid-url", "Alice")
+                .await
+                .is_err()
+        );
     }
 }

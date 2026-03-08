@@ -89,10 +89,7 @@ impl AccessService {
     ) -> Result<Vec<RoomAccess>, VisioError> {
         let (instance, _slug) = AuthService::parse_meet_url(meet_url)?;
 
-        let api_url = format!(
-            "https://{}/api/v1.0/rooms/{}/",
-            instance, room_id
-        );
+        let api_url = format!("https://{}/api/v1.0/rooms/{}/", instance, room_id);
 
         let client = reqwest::Client::new();
         let resp = client
@@ -139,10 +136,7 @@ impl AccessService {
         let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
         let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-        let cookie_header = format!(
-            "sessionid={}; csrftoken={}",
-            session_cookie, csrf_token
-        );
+        let cookie_header = format!("sessionid={}; csrftoken={}", session_cookie, csrf_token);
 
         let body = serde_json::json!({
             "user": user_id,
@@ -201,10 +195,7 @@ impl AccessService {
         let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
         let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-        let cookie_header = format!(
-            "sessionid={}; csrftoken={}",
-            session_cookie, csrf_token
-        );
+        let cookie_header = format!("sessionid={}; csrftoken={}", session_cookie, csrf_token);
 
         let client = reqwest::Client::new();
         let resp = client
@@ -317,6 +308,10 @@ mod tests {
 
     #[tokio::test]
     async fn search_users_invalid_url_returns_error() {
-        assert!(AccessService::search_users("invalid", "cookie", "query").await.is_err());
+        assert!(
+            AccessService::search_users("invalid", "cookie", "query")
+                .await
+                .is_err()
+        );
     }
 }

@@ -29,9 +29,14 @@ pub enum VisioEvent {
     },
     UnreadCountChanged(u32),
     /// A participant is waiting in the lobby (host notification).
-    LobbyParticipantJoined { id: String, username: String },
+    LobbyParticipantJoined {
+        id: String,
+        username: String,
+    },
     /// A waiting participant left the lobby.
-    LobbyParticipantLeft { id: String },
+    LobbyParticipantLeft {
+        id: String,
+    },
     /// Entry was denied by the host (participant notification).
     LobbyDenied,
     /// A participant sent an animated reaction (emoji).

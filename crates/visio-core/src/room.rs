@@ -465,17 +465,12 @@ impl RoomManager {
         let (participant_id, lobby_cookie, poll_result) =
             LobbyService::request_entry(meet_url, username).await?;
 
-        tracing::info!(
-            "lobby entry requested: participant_id={participant_id}"
-        );
+        tracing::info!("lobby entry requested: participant_id={participant_id}");
 
         *self.lobby_cookie.lock().await = Some(lobby_cookie.clone());
 
         match poll_result {
-            LobbyPollResult::Accepted {
-                livekit_url,
-                token,
-            } => {
+            LobbyPollResult::Accepted { livekit_url, token } => {
                 tracing::info!("immediately accepted into room");
                 return self.connect_with_token(&livekit_url, &token).await;
             }
@@ -728,7 +723,11 @@ impl RoomManager {
                         // Detect new participants
                         for p in &participants {
                             if !known_ids.contains(&p.id) {
-                                tracing::info!("lobby: new waiting participant: {} ({})", p.username, p.id);
+                                tracing::info!(
+                                    "lobby: new waiting participant: {} ({})",
+                                    p.username,
+                                    p.id
+                                );
                                 emitter.emit(VisioEvent::LobbyParticipantJoined {
                                     id: p.id.clone(),
                                     username: p.username.clone(),
@@ -740,9 +739,7 @@ impl RoomManager {
                         for id in &known_ids {
                             if !current_ids.contains(id) {
                                 tracing::info!("lobby: participant left: {}", id);
-                                emitter.emit(VisioEvent::LobbyParticipantLeft {
-                                    id: id.clone(),
-                                });
+                                emitter.emit(VisioEvent::LobbyParticipantLeft { id: id.clone() });
                             }
                         }
 

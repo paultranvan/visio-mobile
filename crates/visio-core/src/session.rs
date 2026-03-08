@@ -1,4 +1,4 @@
-use reqwest::header::{HeaderMap, HeaderValue, COOKIE};
+use reqwest::header::{COOKIE, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::VisioError;
@@ -113,8 +113,7 @@ impl SessionManager {
         let cookie_value = format!("sessionid={}", cookie);
         headers.insert(
             COOKIE,
-            HeaderValue::from_str(&cookie_value)
-                .map_err(|e| VisioError::Http(e.to_string()))?,
+            HeaderValue::from_str(&cookie_value).map_err(|e| VisioError::Http(e.to_string()))?,
         );
 
         let client = reqwest::Client::new();
@@ -126,9 +125,7 @@ impl SessionManager {
             .map_err(|e| VisioError::Http(e.to_string()))?;
 
         let status = response.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED
-            || status == reqwest::StatusCode::FORBIDDEN
-        {
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
             return Err(VisioError::Session(
                 "Session expired or invalid".to_string(),
             ));
@@ -210,7 +207,11 @@ impl SessionManager {
             format!("{}-{}-{}", p1, p2, p3)
         };
 
-        let room_name = if name.trim().is_empty() { &slug_name } else { name };
+        let room_name = if name.trim().is_empty() {
+            &slug_name
+        } else {
+            name
+        };
 
         let body = serde_json::json!({
             "name": room_name,
@@ -229,9 +230,7 @@ impl SessionManager {
             .map_err(|e| VisioError::Http(e.to_string()))?;
 
         let status = response.status();
-        if status == reqwest::StatusCode::UNAUTHORIZED
-            || status == reqwest::StatusCode::FORBIDDEN
-        {
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
             return Err(VisioError::Session(
                 "Authentication required to create a room".to_string(),
             ));
@@ -252,8 +251,9 @@ impl SessionManager {
 
         tracing::debug!("create_room response body: {}", body);
 
-        serde_json::from_str::<CreateRoomResponse>(&body)
-            .map_err(|e| VisioError::Session(format!("Invalid room response: {} — body: {}", e, body)))
+        serde_json::from_str::<CreateRoomResponse>(&body).map_err(|e| {
+            VisioError::Session(format!("Invalid room response: {} — body: {}", e, body))
+        })
     }
 }
 
@@ -276,7 +276,11 @@ mod tests {
             full_name: Some("Test User".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user.clone(), "abc123".to_string(), "meet.example.com".to_string());
+        session.set_authenticated(
+            user.clone(),
+            "abc123".to_string(),
+            "meet.example.com".to_string(),
+        );
         match session.state() {
             SessionState::Authenticated { user: u, .. } => {
                 assert_eq!(u.display_name(), "Test User");
@@ -320,8 +324,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_user_with_invalid_cookie_returns_error() {
-        let result =
-            SessionManager::fetch_user("https://meet.example.com", "invalid_cookie").await;
+        let result = SessionManager::fetch_user("https://meet.example.com", "invalid_cookie").await;
         assert!(result.is_err());
     }
 
