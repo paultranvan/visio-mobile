@@ -168,6 +168,7 @@
   "notification.channelDescription": "Wordt weergegeven wanneer er een gesprek gaande is",
   "notification.title": "Visio Mobile",
   "notification.text": "Gesprek bezig",
+  "settings.adaptiveMode": "Adaptieve modus (auto kantoor/voetganger/auto)",
   "adaptive.office": "Kantoormodus",
   "adaptive.pedestrian": "Voetgangersmodus",
   "adaptive.car": "Automodus",

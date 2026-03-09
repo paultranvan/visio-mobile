@@ -77,6 +77,7 @@ dictionary Settings {
     boolean notification_participant_join;
     boolean notification_hand_raised;
     boolean notification_message_received;
+    boolean adaptive_mode_enabled;
 };
 
 [Enum]
@@ -213,6 +214,10 @@ interface VisioClient {
     void set_notification_hand_raised(boolean enabled);
 
     void set_notification_message_received(boolean enabled);
+
+    boolean is_adaptive_mode_enabled();
+
+    void set_adaptive_mode_enabled(boolean enabled);
 
     [Throws=VisioError]
     void raise_hand();

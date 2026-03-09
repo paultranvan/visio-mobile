@@ -144,9 +144,7 @@ class VisioManager: ObservableObject {
                     }
 
                     // Start context detection for adaptive modes
-                    let detector = ContextDetector()
-                    detector.start()
-                    self.contextDetector = detector
+                    self.startContextDetection()
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -154,6 +152,23 @@ class VisioManager: ObservableObject {
                 }
             }
         }
+    }
+
+    func startContextDetection() {
+        guard client.isAdaptiveModeEnabled() else {
+            NSLog("VisioManager: adaptive mode disabled, skipping context detection")
+            return
+        }
+        let detector = ContextDetector()
+        detector.start()
+        contextDetector = detector
+    }
+
+    func stopContextDetection() {
+        contextDetector?.stop()
+        contextDetector = nil
+        adaptiveMode = .office
+        client.setAdaptiveModeOverride(mode: .office)
     }
 
     func disconnect() {

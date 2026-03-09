@@ -71,6 +71,7 @@ interface Settings {
   mic_enabled_on_join: boolean;
   camera_enabled_on_join: boolean;
   theme: string;
+  adaptive_mode_enabled: boolean;
 }
 
 interface ReactionData {
@@ -1731,6 +1732,7 @@ function SettingsModal({
     micOnJoin: true,
     cameraOnJoin: false,
     theme: "light",
+    adaptiveModeEnabled: true,
   });
   const [meetInstances, setMeetInstances] = useState<string[]>(["meet.numerique.gouv.fr"]);
 
@@ -1743,6 +1745,7 @@ function SettingsModal({
           micOnJoin: s.mic_enabled_on_join ?? true,
           cameraOnJoin: s.camera_enabled_on_join ?? false,
           theme: s.theme || "light",
+          adaptiveModeEnabled: s.adaptive_mode_enabled ?? true,
         }));
       })
       .catch(() => {});
@@ -1753,6 +1756,7 @@ function SettingsModal({
     await invoke("set_display_name", { name: form.displayName || null });
     await invoke("set_mic_enabled_on_join", { enabled: form.micOnJoin });
     await invoke("set_camera_enabled_on_join", { enabled: form.cameraOnJoin });
+    await invoke("set_adaptive_mode_enabled", { enabled: form.adaptiveModeEnabled });
     onDisplayNameChange(form.displayName);
     onClose();
   };
@@ -1827,6 +1831,16 @@ function SettingsModal({
               checked={form.cameraOnJoin}
               onChange={(e) =>
                 setForm({ ...form, cameraOnJoin: e.target.checked })
+              }
+            />
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">{t("settings.adaptiveMode")}</label>
+            <input
+              type="checkbox"
+              checked={form.adaptiveModeEnabled}
+              onChange={(e) =>
+                setForm({ ...form, adaptiveModeEnabled: e.target.checked })
               }
             />
           </div>

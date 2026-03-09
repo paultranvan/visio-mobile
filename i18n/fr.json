@@ -168,6 +168,7 @@
   "restricted.alreadyInvited": "Déjà invité",
   "restricted.searchUnavailable": "La recherche d'utilisateurs n'est pas disponible sur ce serveur",
   "restricted.noResults": "Aucun utilisateur trouvé",
+  "settings.adaptiveMode": "Mode adaptatif (auto bureau/piéton/voiture)",
   "adaptive.office": "Mode bureau",
   "adaptive.pedestrian": "Mode piéton",
   "adaptive.car": "Mode voiture",

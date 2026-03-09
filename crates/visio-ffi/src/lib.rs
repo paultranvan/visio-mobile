@@ -288,6 +288,7 @@ pub struct Settings {
     pub notification_participant_join: bool,
     pub notification_hand_raised: bool,
     pub notification_message_received: bool,
+    pub adaptive_mode_enabled: bool,
 }
 
 impl From<visio_core::Settings> for Settings {
@@ -302,6 +303,7 @@ impl From<visio_core::Settings> for Settings {
             notification_participant_join: s.notification_participant_join,
             notification_hand_raised: s.notification_hand_raised,
             notification_message_received: s.notification_message_received,
+            adaptive_mode_enabled: s.adaptive_mode_enabled,
         }
     }
 }
@@ -797,6 +799,14 @@ impl VisioClient {
 
     pub fn set_notification_message_received(&self, enabled: bool) {
         self.settings.set_notification_message_received(enabled);
+    }
+
+    pub fn is_adaptive_mode_enabled(&self) -> bool {
+        self.settings.is_adaptive_mode_enabled()
+    }
+
+    pub fn set_adaptive_mode_enabled(&self, enabled: bool) {
+        self.settings.set_adaptive_mode_enabled(enabled);
     }
 
     pub fn raise_hand(&self) -> Result<(), VisioError> {

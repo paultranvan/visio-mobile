@@ -354,8 +354,19 @@ object VisioManager : VisioEventListener {
      * Call after connecting to a room.
      */
     fun startContextDetection() {
+        if (!client.isAdaptiveModeEnabled()) {
+            Log.i("VisioManager", "Adaptive mode disabled, skipping context detection")
+            return
+        }
         Log.i("VisioManager", "Starting context detection")
         contextDetector = ContextDetector(appContext).also { it.start() }
+    }
+
+    fun stopContextDetection() {
+        contextDetector?.stop()
+        contextDetector = null
+        _adaptiveMode.value = AdaptiveMode.OFFICE
+        client.setAdaptiveModeOverride(AdaptiveMode.OFFICE)
     }
 
     /**

@@ -168,6 +168,7 @@
   "notification.channelDescription": "Wird angezeigt, wenn ein Anruf läuft",
   "notification.title": "Visio Mobile",
   "notification.text": "Anruf läuft",
+  "settings.adaptiveMode": "Adaptiver Modus (auto Büro/Fußgänger/Auto)",
   "adaptive.office": "Büromodus",
   "adaptive.pedestrian": "Fußgängermodus",
   "adaptive.car": "Automodus",
