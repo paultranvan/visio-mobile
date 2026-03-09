@@ -240,6 +240,62 @@ impl MeetingControls {
     pub async fn video_source(&self) -> Option<NativeVideoSource> {
         self.video_source.lock().await.clone()
     }
+
+    /// Publish a screen share track to the room.
+    pub async fn publish_screen_share(&self) -> Result<NativeVideoSource, VisioError> {
+        let room = self.room.lock().await;
+        let room = room
+            .as_ref()
+            .ok_or_else(|| VisioError::Room("not connected".into()))?;
+
+        let source = NativeVideoSource::new(
+            VideoResolution {
+                width: 1920,
+                height: 1080,
+            },
+            true, // is_screencast
+        );
+
+        let track = LocalVideoTrack::create_video_track(
+            "screen_share",
+            RtcVideoSource::Native(source.clone()),
+        );
+
+        room.local_participant()
+            .publish_track(
+                LocalTrack::Video(track),
+                TrackPublishOptions {
+                    source: LkTrackSource::Screenshare,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|e| VisioError::Room(format!("publish screen share: {e}")))?;
+
+        tracing::info!("screen share track published");
+        Ok(source)
+    }
+
+    /// Stop publishing the screen share track.
+    pub async fn stop_screen_share(&self) -> Result<(), VisioError> {
+        let room = self.room.lock().await;
+        let room = room
+            .as_ref()
+            .ok_or_else(|| VisioError::Room("not connected".into()))?;
+
+        let local = room.local_participant();
+        for (_sid, pub_) in local.track_publications() {
+            if pub_.source() == LkTrackSource::Screenshare {
+                local
+                    .unpublish_track(&pub_.sid())
+                    .await
+                    .map_err(|e| VisioError::Room(format!("unpublish screen share: {e}")))?;
+                tracing::info!("screen share track unpublished");
+                break;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
