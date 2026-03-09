@@ -373,7 +373,7 @@ function HomeView({
   }, [meetUrl]);
 
   const handleJoin = async () => {
-    const url = resolvedUrl || resolveUrl(meetUrl);
+    const url = resolvedUrl || meetUrl;
     if (!url) {
       setError(t("home.error.noUrl"));
       return;
