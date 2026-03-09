@@ -23,9 +23,13 @@ cargo build --target "$RUST_TARGET" -p visio-ffi -p visio-video --release
 # will prefer .dylib over .a when both exist, causing DYLD load errors.
 rm -f "target/$RUST_TARGET/release/"*.dylib
 
-echo "==> Libraries at:"
-ls -la "target/$RUST_TARGET/release/libvisio_ffi.a"
-ls -la "target/$RUST_TARGET/release/libvisio_video.a"
+# Merge both static libs into one to avoid duplicate WebRTC symbols
+libtool -static -o "target/$RUST_TARGET/release/libvisio.a" \
+  "target/$RUST_TARGET/release/libvisio_ffi.a" \
+  "target/$RUST_TARGET/release/libvisio_video.a"
+
+echo "==> Merged library at:"
+ls -la "target/$RUST_TARGET/release/libvisio.a"
 
 echo ""
 echo "To integrate with Xcode:"
