@@ -17,3 +17,7 @@ rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
 
 [target.i686-linux-android]
 rustflags = ["-C", "link-arg=-z", "-C", "link-arg=max-page-size=16384"]
+
+# rpath tells the binary where to find libonnxruntime.so at runtime.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN/lib/onnxruntime"]
