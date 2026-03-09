@@ -9,6 +9,8 @@ use visio_core::{
 
 #[cfg(target_os = "macos")]
 mod camera_macos;
+#[cfg(target_os = "linux")]
+mod camera_linux;
 mod audio_cpal;
 
 // ---------------------------------------------------------------------------
@@ -56,6 +58,8 @@ struct VisioState {
     settings: SettingsStore,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
+    #[cfg(target_os = "linux")]
+    camera_capture: std::sync::Mutex<Option<camera_linux::LinuxCameraCapture>>,
     _audio_playout: audio_cpal::CpalAudioPlayout,
     audio_capture: std::sync::Mutex<Option<audio_cpal::CpalAudioCapture>>,
 }
@@ -450,10 +454,17 @@ async fn toggle_camera(
                 let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
                 *cam = Some(capture);
             }
+            #[cfg(target_os = "linux")]
+            {
+                let capture = camera_linux::LinuxCameraCapture::start(source)
+                    .map_err(|e| format!("camera capture: {e}"))?;
+                let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
+                *cam = Some(capture);
+            }
         }
     } else {
         // Stop camera capture when disabling
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
         {
             let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(mut capture) = cam.take() {
@@ -1029,7 +1040,8 @@ pub fn run() {
     std::fs::create_dir_all(&data_dir).ok();
     let settings = SettingsStore::new(data_dir.to_str().unwrap());
 
-    let room_manager = RoomManager::new();
+    let mut room_manager = RoomManager::new();
+    room_manager.set_adaptive_stream(false);
     let playout_buffer = room_manager.playout_buffer();
     let controls = room_manager.controls();
     let chat = room_manager.chat();
@@ -1062,6 +1074,8 @@ pub fn run() {
         session: Mutex::new(SessionManager::new()),
         settings,
         #[cfg(target_os = "macos")]
+        camera_capture: std::sync::Mutex::new(None),
+        #[cfg(target_os = "linux")]
         camera_capture: std::sync::Mutex::new(None),
         _audio_playout: audio_playout,
         audio_capture: std::sync::Mutex::new(None),
@@ -1103,7 +1117,7 @@ pub fn run() {
                         capture.stop();
                     }
                 }
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "linux"))]
                 {
                     let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(mut capture) = cam.take() {
