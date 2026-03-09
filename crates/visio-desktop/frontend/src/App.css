@@ -510,6 +510,32 @@ main {
   height: 100%;
 }
 
+.focus-thumbnails {
+  display: flex;
+  gap: 8px;
+  height: 120px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.focus-thumbnails > .tile {
+  width: 160px;
+  min-width: 160px;
+  height: 100%;
+  cursor: pointer;
+}
+
+.tile-screen-icon {
+  color: #4fc3f7;
+  display: flex;
+  align-items: center;
+}
+
+.control-btn-active-danger {
+  background: var(--danger, #e53935) !important;
+  color: white !important;
+}
+
 /* -- Participant Tile ------------------------------------------------------ */
 
 .tile {

@@ -167,5 +167,8 @@
   "notification.channelName": "Actief gesprek",
   "notification.channelDescription": "Wordt weergegeven wanneer er een gesprek gaande is",
   "notification.title": "Visio Mobile",
-  "notification.text": "Gesprek bezig"
+  "notification.text": "Gesprek bezig",
+  "call.startShare": "Scherm delen",
+  "call.stopShare": "Delen stoppen",
+  "call.screenShare": "Scherm"
 }

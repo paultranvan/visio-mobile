@@ -689,6 +689,29 @@ async fn send_reaction(state: tauri::State<'_, VisioState>, emoji: String) -> Re
 }
 
 #[tauri::command]
+async fn start_screen_share(
+    state: tauri::State<'_, VisioState>,
+) -> Result<(), String> {
+    let controls = state.controls.lock().await;
+    controls
+        .publish_screen_share()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn stop_screen_share(
+    state: tauri::State<'_, VisioState>,
+) -> Result<(), String> {
+    let controls = state.controls.lock().await;
+    controls
+        .stop_screen_share()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn set_background_mode(
     state: tauri::State<'_, VisioState>,
     app: AppHandle,
@@ -1290,6 +1313,8 @@ pub fn run() {
             create_room,
             get_session_state,
             send_reaction,
+            start_screen_share,
+            stop_screen_share,
             set_background_mode,
             get_background_mode,
             load_blur_model,

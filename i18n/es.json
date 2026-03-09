@@ -167,5 +167,8 @@
   "notification.channelName": "Llamada activa",
   "notification.channelDescription": "Se muestra cuando hay una llamada en curso",
   "notification.title": "Visio Mobile",
-  "notification.text": "Llamada en curso"
+  "notification.text": "Llamada en curso",
+  "call.startShare": "Compartir pantalla",
+  "call.stopShare": "Dejar de compartir",
+  "call.screenShare": "Pantalla"
 }

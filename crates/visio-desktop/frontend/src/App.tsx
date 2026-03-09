@@ -47,7 +47,48 @@ interface Participant {
   is_muted: boolean;
   has_video: boolean;
   video_track_sid: string | null;
+  has_screen_share: boolean;
+  screen_share_track_sid: string | null;
   connection_quality: string;
+}
+
+type FocusItem = {
+  participantSid: string;
+  source: "camera" | "screen_share";
+} | null;
+
+interface DisplayItem {
+  key: string;
+  participant: Participant;
+  source: "camera" | "screen_share";
+  trackSid: string | null;
+  label: string;
+  isScreenShare: boolean;
+}
+
+function buildDisplayItems(participants: Participant[], t: TFunction): DisplayItem[] {
+  const items: DisplayItem[] = [];
+  for (const p of participants) {
+    items.push({
+      key: `${p.sid}-camera`,
+      participant: p,
+      source: "camera",
+      trackSid: p.video_track_sid,
+      label: p.name || p.identity || t("unknown"),
+      isScreenShare: false,
+    });
+    if (p.has_screen_share && p.screen_share_track_sid) {
+      items.push({
+        key: `${p.sid}-screen`,
+        participant: p,
+        source: "screen_share",
+        trackSid: p.screen_share_track_sid,
+        label: p.name || p.identity || t("unknown"),
+        isScreenShare: true,
+      });
+    }
+  }
+  return items;
 }
 
 interface ChatMessage {
@@ -175,6 +216,18 @@ function VisioLogo({ size = 64 }: { size?: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Screen Share Icon
+// ---------------------------------------------------------------------------
+
+function ScreenShareIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -230,6 +283,7 @@ interface ParticipantTileProps {
   videoFrames: Map<string, string>;
   isActiveSpeaker?: boolean;
   handRaisePosition?: number;
+  displayItem?: DisplayItem;
 }
 
 function ParticipantTile({
@@ -237,14 +291,19 @@ function ParticipantTile({
   videoFrames,
   isActiveSpeaker,
   handRaisePosition,
+  displayItem,
 }: ParticipantTileProps) {
   const t = useT();
-  const displayName = participant.name || participant.identity || t("unknown");
+  const isScreenShare = displayItem?.isScreenShare ?? false;
+  const trackSid = displayItem ? displayItem.trackSid : participant.video_track_sid;
+  const displayName = displayItem
+    ? (isScreenShare ? `${displayItem.label} (${t("call.screenShare")})` : displayItem.label)
+    : (participant.name || participant.identity || t("unknown"));
   const initials = getInitials(displayName);
   const hue = getHue(displayName);
 
-  const videoSrc = participant.video_track_sid
-    ? videoFrames.get(participant.video_track_sid)
+  const videoSrc = trackSid
+    ? videoFrames.get(trackSid)
     : undefined;
 
   return (
@@ -264,11 +323,15 @@ function ParticipantTile({
         </div>
       )}
       <div className="tile-metadata">
-        {participant.is_muted && (
+        {isScreenShare ? (
+          <span className="tile-screen-icon">
+            <ScreenShareIcon size={14} />
+          </span>
+        ) : participant.is_muted ? (
           <span className="tile-muted-icon">
             <RiMicOffFill size={14} />
           </span>
-        )}
+        ) : null}
         {handRaisePosition != null && handRaisePosition > 0 && (
           <span className="tile-hand-badge">
             <RiHand size={12} /> {handRaisePosition}
@@ -1134,7 +1197,8 @@ function CallView({
   accessLevel?: string;
 }) {
   const t = useT();
-  const [focusedParticipant, setFocusedParticipant] = useState<string | null>(null);
+  const [focusedItem, setFocusedItem] = useState<FocusItem>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [bgMode, setBgMode] = useState("off");
@@ -1171,6 +1235,31 @@ function CallView({
       if (unlisten) unlisten();
     };
   }, []);
+
+  // Auto-focus when a screen share track is subscribed
+  useEffect(() => {
+    const unsub = listen<{ trackSid: string; participantSid: string; source: string }>(
+      "track-subscribed", (event) => {
+        if (event.payload.source === "screen_share") {
+          setFocusedItem({
+            participantSid: event.payload.participantSid,
+            source: "screen_share",
+          });
+        }
+      }
+    );
+    return () => { unsub.then(f => f()); };
+  }, []);
+
+  // Auto-unfocus when focused screen share ends
+  useEffect(() => {
+    if (focusedItem?.source === "screen_share") {
+      const p = participants.find(p => p.sid === focusedItem.participantSid);
+      if (!p?.has_screen_share) {
+        setFocusedItem(null);
+      }
+    }
+  }, [participants, focusedItem]);
 
   const handleSendReaction = async (emojiId: string) => {
     try {
@@ -1240,7 +1329,14 @@ function CallView({
     });
   }
   allParticipants.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));
-  const gridCount = Math.min(allParticipants.length, 9);
+  const displayItems = buildDisplayItems(allParticipants, t);
+  const focusedDisplayItem = focusedItem
+    ? displayItems.find(d => d.participant.sid === focusedItem.participantSid && d.source === focusedItem.source)
+    : null;
+  const thumbnailItems = focusedDisplayItem
+    ? displayItems.filter(d => d.key !== focusedDisplayItem.key)
+    : [];
+  const gridCount = Math.min(displayItems.length, 9);
 
   return (
     <div id="call" className="section active">
@@ -1283,43 +1379,44 @@ function CallView({
       <div className="call-body">
         {/* Main video area */}
         <div className="call-content">
-          {focusedParticipant && allParticipants.find((p) => p.sid === focusedParticipant) ? (
+          {focusedDisplayItem ? (
             <div className="focus-layout">
-              <div className="focus-main" onClick={() => setFocusedParticipant(null)}>
+              <div className="focus-main" onClick={() => setFocusedItem(null)}>
                 <ParticipantTile
-                  participant={allParticipants.find((p) => p.sid === focusedParticipant)!}
+                  participant={focusedDisplayItem.participant}
                   videoFrames={videoFrames}
-                  isActiveSpeaker={activeSpeakers.includes(focusedParticipant)}
-                  handRaisePosition={handRaisedMap[focusedParticipant]}
+                  isActiveSpeaker={activeSpeakers.includes(focusedDisplayItem.participant.sid)}
+                  handRaisePosition={handRaisedMap[focusedDisplayItem.participant.sid]}
+                  displayItem={focusedDisplayItem}
                 />
               </div>
-              <div className="focus-strip">
-                {allParticipants
-                  .filter((p) => p.sid !== focusedParticipant)
-                  .map((p) => (
-                    <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
-                      <ParticipantTile
-                        participant={p}
-                        videoFrames={videoFrames}
-                        isActiveSpeaker={activeSpeakers.includes(p.sid)}
-                        handRaisePosition={handRaisedMap[p.sid]}
-                      />
-                    </div>
-                  ))}
+              <div className="focus-thumbnails">
+                {thumbnailItems.map((d) => (
+                  <div key={d.key} className="tile" onClick={() => setFocusedItem({ participantSid: d.participant.sid, source: d.source })}>
+                    <ParticipantTile
+                      participant={d.participant}
+                      videoFrames={videoFrames}
+                      isActiveSpeaker={activeSpeakers.includes(d.participant.sid)}
+                      handRaisePosition={handRaisedMap[d.participant.sid]}
+                      displayItem={d}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
             <div className={`video-grid video-grid-${gridCount}`}>
-              {allParticipants.length === 0 ? (
+              {displayItems.length === 0 ? (
                 <div className="empty-state">{t("call.noParticipants")}</div>
               ) : (
-                allParticipants.map((p) => (
-                  <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
+                displayItems.map((d) => (
+                  <div key={d.key} onClick={() => setFocusedItem({ participantSid: d.participant.sid, source: d.source })}>
                     <ParticipantTile
-                      participant={p}
+                      participant={d.participant}
                       videoFrames={videoFrames}
-                      isActiveSpeaker={activeSpeakers.includes(p.sid)}
-                      handRaisePosition={handRaisedMap[p.sid]}
+                      isActiveSpeaker={activeSpeakers.includes(d.participant.sid)}
+                      handRaisePosition={handRaisedMap[d.participant.sid]}
+                      displayItem={d}
                     />
                   </div>
                 ))
@@ -1578,6 +1675,31 @@ function CallView({
             <RiArrowUpSLine size={16} />
           </button>
         </div>
+
+        {/* Screen share */}
+        <button
+          className={`control-btn ${isScreenSharing ? "control-btn-active-danger" : ""}`}
+          onClick={async () => {
+            if (isScreenSharing) {
+              try {
+                await invoke("stop_screen_share");
+                setIsScreenSharing(false);
+              } catch (e) {
+                console.error("Failed to stop screen share:", e);
+              }
+            } else {
+              try {
+                await invoke("start_screen_share");
+                setIsScreenSharing(true);
+              } catch (e) {
+                console.error("Failed to start screen share:", e);
+              }
+            }
+          }}
+          title={isScreenSharing ? t("call.stopShare") : t("call.startShare")}
+        >
+          <ScreenShareIcon size={20} />
+        </button>
 
         {/* Participants */}
         <button
