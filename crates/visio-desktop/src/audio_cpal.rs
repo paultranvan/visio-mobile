@@ -98,7 +98,13 @@ impl CpalAudioPlayout {
         let device = host
             .default_output_device()
             .ok_or("no output audio device available")?;
+        Self::start_with_device(device, playout_buffer)
+    }
 
+    pub fn start_with_device(
+        device: cpal::Device,
+        playout_buffer: Arc<AudioPlayoutBuffer>,
+    ) -> Result<Self, String> {
         let default_cfg = device
             .default_output_config()
             .map_err(|e| format!("default output config: {e}"))?;
