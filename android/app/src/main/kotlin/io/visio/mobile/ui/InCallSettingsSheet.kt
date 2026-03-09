@@ -772,7 +772,7 @@ private fun RoomInfoTab(
                 val shareIntent =
                     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, deepLink)
+                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
                     }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {

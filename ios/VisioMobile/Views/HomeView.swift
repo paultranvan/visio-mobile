@@ -628,7 +628,7 @@ private struct CreateRoomSheet: View {
                                     Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc")
                                         .font(.caption)
                                 }
-                                ShareLink(item: deepLink) {
+                                ShareLink(item: createdUrl!) {
                                     Image(systemName: "square.and.arrow.up")
                                         .font(.caption)
                                 }

@@ -170,5 +170,12 @@
   "notification.text": "Chiamata in corso",
   "call.startShare": "Condividi schermo",
   "call.stopShare": "Interrompi condivisione",
-  "call.screenShare": "Schermo"
+  "call.screenShare": "Schermo",
+  "settings.adaptiveMode": "Modalità adattiva (auto ufficio/pedonale/auto)",
+  "adaptive.office": "Modalità ufficio",
+  "adaptive.pedestrian": "Modalità pedonale",
+  "adaptive.car": "Modalità auto",
+  "adaptive.auto": "Auto",
+  "adaptive.override": "Forza modalità",
+  "adaptive.audioOnly": "Solo audio"
 }

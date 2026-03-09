@@ -4,6 +4,7 @@
 //! Consumed by native UI shells via UniFFI bindings.
 
 pub mod access;
+pub mod adaptive;
 pub mod audio_capture_buffer;
 pub mod audio_playout;
 pub mod auth;

@@ -170,5 +170,12 @@
   "restricted.noResults": "Aucun utilisateur trouvé",
   "call.startShare": "Partager l'écran",
   "call.stopShare": "Arrêter le partage",
-  "call.screenShare": "Écran"
+  "call.screenShare": "Écran",
+  "settings.adaptiveMode": "Mode adaptatif (auto bureau/piéton/voiture)",
+  "adaptive.office": "Mode bureau",
+  "adaptive.pedestrian": "Mode piéton",
+  "adaptive.car": "Mode voiture",
+  "adaptive.auto": "Auto",
+  "adaptive.override": "Forcer le mode",
+  "adaptive.audioOnly": "Audio uniquement"
 }

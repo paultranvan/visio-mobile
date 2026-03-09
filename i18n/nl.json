@@ -170,5 +170,12 @@
   "notification.text": "Gesprek bezig",
   "call.startShare": "Scherm delen",
   "call.stopShare": "Delen stoppen",
-  "call.screenShare": "Scherm"
+  "call.screenShare": "Scherm",
+  "settings.adaptiveMode": "Adaptieve modus (auto kantoor/voetganger/auto)",
+  "adaptive.office": "Kantoormodus",
+  "adaptive.pedestrian": "Voetgangersmodus",
+  "adaptive.car": "Automodus",
+  "adaptive.auto": "Auto",
+  "adaptive.override": "Modus overschrijven",
+  "adaptive.audioOnly": "Alleen audio"
 }

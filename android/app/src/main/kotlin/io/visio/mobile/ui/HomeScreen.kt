@@ -747,7 +747,7 @@ private fun CreateRoomDialog(
                             val sendIntent =
                                 Intent().apply {
                                     action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, deepLink)
+                                    putExtra(Intent.EXTRA_TEXT, createdUrl)
                                     type = "text/plain"
                                 }
                             context.startActivity(Intent.createChooser(sendIntent, null))

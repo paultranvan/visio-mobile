@@ -6,6 +6,10 @@
 use std::sync::{Arc, Mutex as StdMutex};
 use visio_core::{
     self,
+    adaptive::{
+        AdaptiveMode as CoreAdaptiveMode, ContextSignal as CoreContextSignal,
+        NetworkType as CoreNetworkType,
+    },
     events::{
         ChatMessage as CoreChatMessage, ConnectionQuality as CoreConnectionQuality,
         ConnectionState as CoreConnectionState, ParticipantInfo as CoreParticipantInfo,
@@ -165,6 +169,50 @@ impl From<CoreTrackSource> for TrackSource {
 }
 
 #[derive(Debug, Clone)]
+pub enum AdaptiveMode {
+    Office,
+    Pedestrian,
+    Car,
+}
+
+impl From<CoreAdaptiveMode> for AdaptiveMode {
+    fn from(m: CoreAdaptiveMode) -> Self {
+        match m {
+            CoreAdaptiveMode::Office => Self::Office,
+            CoreAdaptiveMode::Pedestrian => Self::Pedestrian,
+            CoreAdaptiveMode::Car => Self::Car,
+        }
+    }
+}
+
+impl From<AdaptiveMode> for CoreAdaptiveMode {
+    fn from(m: AdaptiveMode) -> Self {
+        match m {
+            AdaptiveMode::Office => Self::Office,
+            AdaptiveMode::Pedestrian => Self::Pedestrian,
+            AdaptiveMode::Car => Self::Car,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum NetworkType {
+    Wifi,
+    Cellular,
+    Unknown,
+}
+
+impl From<NetworkType> for CoreNetworkType {
+    fn from(n: NetworkType) -> Self {
+        match n {
+            NetworkType::Wifi => Self::Wifi,
+            NetworkType::Cellular => Self::Cellular,
+            NetworkType::Unknown => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ParticipantInfo {
     pub sid: String,
     pub identity: String,
@@ -244,6 +292,7 @@ pub struct Settings {
     pub notification_participant_join: bool,
     pub notification_hand_raised: bool,
     pub notification_message_received: bool,
+    pub adaptive_mode_enabled: bool,
 }
 
 impl From<visio_core::Settings> for Settings {
@@ -258,6 +307,7 @@ impl From<visio_core::Settings> for Settings {
             notification_participant_join: s.notification_participant_join,
             notification_hand_raised: s.notification_hand_raised,
             notification_message_received: s.notification_message_received,
+            adaptive_mode_enabled: s.adaptive_mode_enabled,
         }
     }
 }
@@ -361,6 +411,7 @@ pub enum VisioEvent {
     LobbyParticipantLeft { id: String },
     LobbyDenied,
     ReactionReceived { participant_sid: String, participant_name: String, emoji: String },
+    AdaptiveModeChanged { mode: AdaptiveMode },
     ConnectionLost,
 }
 
@@ -412,6 +463,9 @@ impl From<CoreVisioEvent> for VisioEvent {
             CoreVisioEvent::LobbyDenied => Self::LobbyDenied,
             CoreVisioEvent::ReactionReceived { participant_sid, participant_name, emoji } => {
                 Self::ReactionReceived { participant_sid, participant_name, emoji }
+            }
+            CoreVisioEvent::AdaptiveModeChanged { mode } => {
+                Self::AdaptiveModeChanged { mode: mode.into() }
             }
             CoreVisioEvent::ConnectionLost => Self::ConnectionLost,
         }
@@ -751,6 +805,14 @@ impl VisioClient {
         self.settings.set_notification_message_received(enabled);
     }
 
+    pub fn is_adaptive_mode_enabled(&self) -> bool {
+        self.settings.is_adaptive_mode_enabled()
+    }
+
+    pub fn set_adaptive_mode_enabled(&self, enabled: bool) {
+        self.settings.set_adaptive_mode_enabled(enabled);
+    }
+
     pub fn raise_hand(&self) -> Result<(), VisioError> {
         self.rt.block_on(self.room_manager.raise_hand())
             .map_err(VisioError::from)
@@ -987,6 +1049,31 @@ impl VisioClient {
         ).map_err(VisioError::from)?;
 
         Ok(())
+    }
+
+    pub fn report_network_type(&self, network_type: NetworkType) {
+        self.room_manager.report_context_signal(
+            CoreContextSignal::NetworkType(network_type.into()),
+        );
+    }
+
+    pub fn report_motion_detected(&self, detected: bool) {
+        self.room_manager
+            .report_context_signal(CoreContextSignal::MotionDetected(detected));
+    }
+
+    pub fn report_bluetooth_car_kit(&self, connected: bool) {
+        self.room_manager
+            .report_context_signal(CoreContextSignal::BluetoothCarKit(connected));
+    }
+
+    pub fn adaptive_mode(&self) -> AdaptiveMode {
+        self.room_manager.adaptive_mode().into()
+    }
+
+    pub fn set_adaptive_mode_override(&self, mode: Option<AdaptiveMode>) {
+        self.room_manager
+            .set_adaptive_mode_override(mode.map(CoreAdaptiveMode::from));
     }
 
     pub fn start_video_renderer(&self, track_sid: String) {

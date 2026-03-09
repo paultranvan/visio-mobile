@@ -68,6 +68,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var theme by remember { mutableStateOf("light") }
     var micOnJoin by remember { mutableStateOf(true) }
     var cameraOnJoin by remember { mutableStateOf(false) }
+    var adaptiveModeEnabled by remember { mutableStateOf(true) }
     var meetInstances by remember { mutableStateOf(listOf("meet.numerique.gouv.fr")) }
     var newInstance by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
@@ -85,6 +86,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             theme = settings.theme ?: "light"
             micOnJoin = settings.micEnabledOnJoin
             cameraOnJoin = settings.cameraEnabledOnJoin
+            adaptiveModeEnabled = VisioManager.client.isAdaptiveModeEnabled()
             meetInstances = VisioManager.client.getMeetInstances()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load settings", e)
@@ -170,6 +172,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                 label = Strings.t("settings.camOnJoin", lang),
                 checked = cameraOnJoin,
                 onCheckedChange = { cameraOnJoin = it },
+                isDark = isDark,
+            )
+            SettingsToggle(
+                label = Strings.t("settings.adaptiveMode", lang),
+                checked = adaptiveModeEnabled,
+                onCheckedChange = { adaptiveModeEnabled = it },
                 isDark = isDark,
             )
 
@@ -304,6 +312,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                         VisioManager.client.setLanguage(language)
                         VisioManager.client.setMicEnabledOnJoin(micOnJoin)
                         VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
+                        val wasEnabled = VisioManager.client.isAdaptiveModeEnabled()
+                        VisioManager.client.setAdaptiveModeEnabled(adaptiveModeEnabled)
+                        if (wasEnabled && !adaptiveModeEnabled) {
+                            VisioManager.stopContextDetection()
+                        } else if (!wasEnabled && adaptiveModeEnabled) {
+                            VisioManager.startContextDetection()
+                        }
                         VisioManager.client.setMeetInstances(instancesToSave)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to save settings", e)

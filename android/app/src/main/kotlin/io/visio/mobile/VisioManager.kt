@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.visio.AdaptiveMode
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
@@ -98,6 +99,24 @@ object VisioManager : VisioEventListener {
     private var reactionIdCounter = 0L
     private val _reactions = MutableStateFlow<List<ReactionData>>(emptyList())
     val reactions: StateFlow<List<ReactionData>> = _reactions.asStateFlow()
+
+    // Adaptive mode
+    private val _adaptiveMode = MutableStateFlow(AdaptiveMode.OFFICE)
+    val adaptiveMode: StateFlow<AdaptiveMode> = _adaptiveMode.asStateFlow()
+
+    // Context detector for adaptive modes
+    private var contextDetector: ContextDetector? = null
+
+    // Track whether camera was on before CAR mode forced it off
+    private var cameraWasEnabledBeforeCar = false
+
+    // Grace period: don't let CAR mode disable camera right after connection
+    // (gives camera-on-join time to activate)
+    private var connectionTimestampMs = 0L
+    private val CONNECTION_GRACE_MS = 5000L  // 5 seconds after connect
+
+    // Track previous audio device to restore after car mode
+    private var previousAudioDevice: AudioDeviceInfo? = null
 
     // Deep link: pre-fill room URL on HomeScreen
     var pendingDeepLink: String? by mutableStateOf(null)
@@ -331,6 +350,26 @@ object VisioManager : VisioEventListener {
     }
 
     /**
+     * Start context detection for adaptive modes (network, motion, bluetooth).
+     * Call after connecting to a room.
+     */
+    fun startContextDetection() {
+        if (!client.isAdaptiveModeEnabled()) {
+            Log.i("VisioManager", "Adaptive mode disabled, skipping context detection")
+            return
+        }
+        Log.i("VisioManager", "Starting context detection")
+        contextDetector = ContextDetector(appContext).also { it.start() }
+    }
+
+    fun stopContextDetection() {
+        contextDetector?.stop()
+        contextDetector = null
+        _adaptiveMode.value = AdaptiveMode.OFFICE
+        client.setAdaptiveModeOverride(AdaptiveMode.OFFICE)
+    }
+
+    /**
      * Route audio input to a specific device.
      */
     fun setAudioInputDevice(device: AudioDeviceInfo) {
@@ -349,6 +388,121 @@ object VisioManager : VisioEventListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)
+        }
+    }
+
+    private fun routeAudioToBluetooth() {
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Save previous state for restore
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            previousAudioDevice = am.communicationDevice
+        }
+
+        // Ensure audio mode is set for communication (required for SCO)
+        if (am.mode != AudioManager.MODE_IN_COMMUNICATION) {
+            am.mode = AudioManager.MODE_IN_COMMUNICATION
+            Log.i("VisioManager", "Set audio mode to MODE_IN_COMMUNICATION")
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+: use setCommunicationDevice
+            val btDevice = am.availableCommunicationDevices.firstOrNull { device ->
+                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+            }
+            if (btDevice != null) {
+                val success = am.setCommunicationDevice(btDevice)
+                Log.i("VisioManager", "setCommunicationDevice(${btDevice.productName}): $success")
+            } else {
+                Log.w("VisioManager", "No Bluetooth device in availableCommunicationDevices")
+                // Fallback: try startBluetoothSco
+                @Suppress("DEPRECATION")
+                am.startBluetoothSco()
+                am.isBluetoothScoOn = true
+                Log.i("VisioManager", "Started Bluetooth SCO (fallback)")
+            }
+        } else {
+            // Pre-Android 12: use legacy SCO
+            @Suppress("DEPRECATION")
+            am.startBluetoothSco()
+            am.isBluetoothScoOn = true
+            Log.i("VisioManager", "Started Bluetooth SCO (legacy)")
+        }
+
+        // Also set preferred devices on audio tracks
+        val btOutput = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        val btInput = am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        btOutput?.let {
+            audioPlayout?.setPreferredDevice(it)
+            Log.i("VisioManager", "Set preferred output: ${it.productName}")
+        }
+        btInput?.let {
+            audioCapture?.setPreferredDevice(it)
+            Log.i("VisioManager", "Set preferred input: ${it.productName}")
+        }
+    }
+
+    private fun restoreDefaultAudioRoute() {
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            am.clearCommunicationDevice()
+        } else {
+            @Suppress("DEPRECATION")
+            if (am.isBluetoothScoOn) {
+                am.isBluetoothScoOn = false
+                am.stopBluetoothSco()
+            }
+        }
+        audioCapture?.setPreferredDevice(null)
+        audioPlayout?.setPreferredDevice(null)
+        previousAudioDevice = null
+        Log.i("VisioManager", "Restored default audio routing")
+    }
+
+    /**
+     * Called by ContextDetector when a Bluetooth audio device connects.
+     * Auto-routes audio if we're in an active call.
+     */
+    fun onBluetoothAudioDeviceConnected() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        Log.i("VisioManager", "Auto-routing audio to newly connected Bluetooth device")
+        scope.launch(Dispatchers.IO) {
+            routeAudioToBluetooth()
+        }
+    }
+
+    /**
+     * Called by ContextDetector when a Bluetooth audio device disconnects.
+     * Restores default routing if no other Bluetooth devices remain.
+     */
+    fun onBluetoothAudioDeviceDisconnected() {
+        if (_connectionState.value !is ConnectionState.Connected) return
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val remainingBtDevice = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        if (remainingBtDevice != null) {
+            // Another BT device still connected — route to it
+            Log.i("VisioManager", "Switching audio to remaining BT device: ${remainingBtDevice.productName}")
+            scope.launch(Dispatchers.IO) {
+                routeAudioToBluetooth()
+            }
+        } else {
+            // No BT devices left — restore to phone speaker/mic
+            Log.i("VisioManager", "No more Bluetooth audio devices, restoring phone speaker/mic")
+            scope.launch(Dispatchers.IO) {
+                restoreDefaultAudioRoute()
+            }
         }
     }
 
@@ -446,6 +600,8 @@ object VisioManager : VisioEventListener {
      * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
      */
     fun disconnect() {
+        contextDetector?.stop()
+        contextDetector = null
         stopCameraCapture()
         stopAudioCapture()
         stopAudioPlayout()
@@ -515,9 +671,13 @@ object VisioManager : VisioEventListener {
                 _connectionState.value = event.state
                 when (event.state) {
                     is ConnectionState.Connected -> {
+                        connectionTimestampMs = System.currentTimeMillis()
                         refreshParticipants()
                         refreshChatMessages()
                         CallForegroundService.start(appContext)
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            startContextDetection()
+                        }
                     }
                     is ConnectionState.Disconnected -> {
                         _handRaisedMap.value = emptyMap()
@@ -615,6 +775,41 @@ object VisioManager : VisioEventListener {
                         client.reconnect()
                     } catch (e: Exception) {
                         Log.e("VISIO", "Auto-reconnection failed: ${e.message}")
+                    }
+                }
+            }
+            is VisioEvent.AdaptiveModeChanged -> {
+                val previousMode = _adaptiveMode.value
+                _adaptiveMode.value = event.mode
+                Log.d("VISIO", "Adaptive mode changed: $previousMode -> ${event.mode}")
+                if (event.mode == uniffi.visio.AdaptiveMode.CAR) {
+                    scope.launch(Dispatchers.IO) {
+                        // If we just connected, wait for camera-on-join to settle
+                        val elapsed = System.currentTimeMillis() - connectionTimestampMs
+                        if (elapsed < CONNECTION_GRACE_MS) {
+                            val delayMs = CONNECTION_GRACE_MS - elapsed
+                            Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
+                            kotlinx.coroutines.delay(delayMs)
+                        }
+                        cameraWasEnabledBeforeCar = client.isCameraEnabled()
+                        if (cameraWasEnabledBeforeCar) {
+                            stopCameraCapture()
+                            client.setCameraEnabled(false)
+                        }
+                        routeAudioToBluetooth()
+                    }
+                } else if (previousMode == uniffi.visio.AdaptiveMode.CAR) {
+                    scope.launch(Dispatchers.IO) {
+                        restoreDefaultAudioRoute()
+                        if (cameraWasEnabledBeforeCar) {
+                            try {
+                                client.setCameraEnabled(true)
+                                startCameraCapture()
+                            } catch (e: Exception) {
+                                Log.e("VISIO", "Failed to restore camera after car mode", e)
+                            }
+                            cameraWasEnabledBeforeCar = false
+                        }
                     }
                 }
             }

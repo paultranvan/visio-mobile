@@ -272,6 +272,17 @@ impl VisioEventListener for DesktopEventListener {
                     );
                 }
             }
+            VisioEvent::AdaptiveModeChanged { mode } => {
+                let mode_str = match mode {
+                    visio_core::adaptive::AdaptiveMode::Office => "office",
+                    visio_core::adaptive::AdaptiveMode::Pedestrian => "pedestrian",
+                    visio_core::adaptive::AdaptiveMode::Car => "car",
+                };
+                tracing::info!("adaptive mode changed: {mode_str}");
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("adaptive-mode-changed", mode_str);
+                }
+            }
             VisioEvent::ConnectionLost => {
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit("connection-lost", ());
@@ -567,6 +578,7 @@ fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value
         "mic_enabled_on_join": s.mic_enabled_on_join,
         "camera_enabled_on_join": s.camera_enabled_on_join,
         "theme": s.theme,
+        "adaptive_mode_enabled": s.adaptive_mode_enabled,
     }))
 }
 
@@ -743,6 +755,17 @@ fn set_background_mode(
 #[tauri::command]
 fn get_background_mode(state: tauri::State<'_, VisioState>) -> String {
     state.settings.get_background_mode()
+}
+
+#[tauri::command]
+fn set_adaptive_mode_enabled(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    enabled: bool,
+) -> Result<(), String> {
+    state.settings.set_adaptive_mode_enabled(enabled);
+    let _ = app.emit("settings-changed", serde_json::json!({"adaptive_mode_enabled": enabled}));
+    Ok(())
 }
 
 #[tauri::command]
@@ -1325,6 +1348,7 @@ pub fn run() {
             select_audio_input,
             select_audio_output,
             select_video_input,
+            set_adaptive_mode_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

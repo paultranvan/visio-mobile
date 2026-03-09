@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var displayName: String = ""
     @State private var micOnJoin: Bool = true
     @State private var cameraOnJoin: Bool = false
+    @State private var adaptiveModeEnabled: Bool = true
     @State private var language: String = Strings.detectSystemLang()
     @State private var theme: String = "light"
     @State private var meetInstances: [String] = ["meet.numerique.gouv.fr"]
@@ -45,6 +46,7 @@ struct SettingsView: View {
                 Section(Strings.t("settings.joinMeeting", lang: lang)) {
                     Toggle(Strings.t("settings.micOnJoin", lang: lang), isOn: $micOnJoin)
                     Toggle(Strings.t("settings.camOnJoin", lang: lang), isOn: $cameraOnJoin)
+                    Toggle(Strings.t("settings.adaptiveMode", lang: lang), isOn: $adaptiveModeEnabled)
                 }
 
                 Section(Strings.t("settings.theme", lang: lang)) {
@@ -136,6 +138,7 @@ struct SettingsView: View {
         cameraOnJoin = settings.cameraEnabledOnJoin
         language = settings.language ?? Strings.detectSystemLang()
         theme = settings.theme ?? "light"
+        adaptiveModeEnabled = manager.client.isAdaptiveModeEnabled()
         meetInstances = manager.client.getMeetInstances()
     }
 
@@ -146,6 +149,13 @@ struct SettingsView: View {
         manager.setMicEnabledOnJoin(micOnJoin)
         manager.setCameraEnabledOnJoin(cameraOnJoin)
         manager.setLanguage(language)
+        let wasEnabled = manager.client.isAdaptiveModeEnabled()
+        manager.client.setAdaptiveModeEnabled(enabled: adaptiveModeEnabled)
+        if wasEnabled && !adaptiveModeEnabled {
+            manager.stopContextDetection()
+        } else if !wasEnabled && adaptiveModeEnabled {
+            manager.startContextDetection()
+        }
         manager.client.setMeetInstances(instances: meetInstances)
     }
 }

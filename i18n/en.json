@@ -170,5 +170,12 @@
   "restricted.noResults": "No users found",
   "call.startShare": "Share screen",
   "call.stopShare": "Stop sharing",
-  "call.screenShare": "Screen"
+  "call.screenShare": "Screen",
+  "settings.adaptiveMode": "Adaptive mode (auto office/pedestrian/car)",
+  "adaptive.office": "Office mode",
+  "adaptive.pedestrian": "Pedestrian mode",
+  "adaptive.car": "Car mode",
+  "adaptive.auto": "Auto",
+  "adaptive.override": "Mode override",
+  "adaptive.audioOnly": "Audio only"
 }

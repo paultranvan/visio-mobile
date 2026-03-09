@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import SwiftUI
 import visioFFI
@@ -41,6 +42,7 @@ class VisioManager: ObservableObject {
     @Published var authenticatedMeetInstance: String = ""
     @Published var backgroundMode: String = "off"
     @Published var reactions: [ReactionData] = []
+    @Published var adaptiveMode: AdaptiveMode = .office
 
     let authManager = OidcAuthManager()
 
@@ -49,7 +51,11 @@ class VisioManager: ObservableObject {
     let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var cameraCapture: CameraCapture?
+    private var contextDetector: ContextDetector?
     private var reactionIdCounter: Int64 = 0
+    private var cameraWasEnabledBeforeCar = false
+    private var connectionTimestamp: Date?
+    private let connectionGraceSeconds: TimeInterval = 5.0
 
     // MARK: - Init
 
@@ -136,6 +142,9 @@ class VisioManager: ObservableObject {
                         capture.start()
                         self.cameraCapture = capture
                     }
+
+                    // Start context detection for adaptive modes
+                    self.startContextDetection()
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -145,10 +154,29 @@ class VisioManager: ObservableObject {
         }
     }
 
+    func startContextDetection() {
+        guard client.isAdaptiveModeEnabled() else {
+            NSLog("VisioManager: adaptive mode disabled, skipping context detection")
+            return
+        }
+        let detector = ContextDetector()
+        detector.start()
+        contextDetector = detector
+    }
+
+    func stopContextDetection() {
+        contextDetector?.stop()
+        contextDetector = nil
+        adaptiveMode = .office
+        client.setAdaptiveModeOverride(mode: .office)
+    }
+
     func disconnect() {
         stopAudioPlayout()
         cameraCapture?.stop()
         cameraCapture = nil
+        contextDetector?.stop()
+        contextDetector = nil
         // Stop all video renderers
         let sids = videoTrackSids
         for sid in sids {
@@ -534,6 +562,37 @@ class VisioManager: ObservableObject {
         audioPlayout?.stop()
         audioPlayout = nil
     }
+
+    // MARK: - Audio Routing
+
+    func routeAudioToBluetooth() {
+        let session = AVAudioSession.sharedInstance()
+        if let btInput = session.availableInputs?.first(where: { port in
+            port.portType == .bluetoothHFP || port.portType == .bluetoothA2DP
+        }) {
+            do {
+                try session.setPreferredInput(btInput)
+                print("[VisioManager] Routed audio input to Bluetooth: \(btInput.portName)")
+            } catch {
+                print("[VisioManager] Failed to route audio to Bluetooth: \(error)")
+            }
+        }
+        do {
+            try session.overrideOutputAudioPort(.none)
+        } catch {
+            print("[VisioManager] Failed to set output override: \(error)")
+        }
+    }
+
+    func restoreDefaultAudioRoute() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setPreferredInput(nil)
+            print("[VisioManager] Restored default audio input")
+        } catch {
+            print("[VisioManager] Failed to restore audio input: \(error)")
+        }
+    }
 }
 
 // MARK: - VisioEventListener
@@ -546,6 +605,9 @@ extension VisioManager: VisioEventListener {
             switch event {
             case .connectionStateChanged(let state):
                 self.connectionState = state
+                if case .connected = state {
+                    self.connectionTimestamp = Date()
+                }
 
             case .participantJoined(let info):
                 if let idx = self.participants.firstIndex(where: { $0.sid == info.sid }) {
@@ -642,6 +704,37 @@ extension VisioManager: VisioEventListener {
 
             case .lobbyDenied:
                 self.lobbyDenied = true
+
+            case .adaptiveModeChanged(let mode):
+                let previousMode = self.adaptiveMode
+                self.adaptiveMode = mode
+                if mode == .car {
+                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                    if self.isCameraEnabled {
+                        // Grace period: don't disable camera if we just connected
+                        let grace = self.connectionTimestamp.map { Date().timeIntervalSince($0) } ?? 999
+                        if grace < self.connectionGraceSeconds {
+                            // Delay camera disable to let camera-on-join complete
+                            DispatchQueue.main.asyncAfter(deadline: .now() + self.connectionGraceSeconds) {
+                                if self.adaptiveMode == .car {
+                                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                                    if self.isCameraEnabled { self.toggleCamera() }
+                                }
+                            }
+                        } else {
+                            self.toggleCamera()
+                        }
+                    }
+                    self.routeAudioToBluetooth()
+                } else if previousMode == .car {
+                    self.restoreDefaultAudioRoute()
+                    if self.cameraWasEnabledBeforeCar {
+                        self.cameraWasEnabledBeforeCar = false
+                        if !self.isCameraEnabled {
+                            self.toggleCamera()
+                        }
+                    }
+                }
 
             case .connectionLost:
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in

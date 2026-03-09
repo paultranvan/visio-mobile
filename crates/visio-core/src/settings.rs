@@ -25,6 +25,8 @@ pub struct Settings {
     pub notification_message_received: bool,
     #[serde(default = "default_background_mode")]
     pub background_mode: String,
+    #[serde(default = "default_true")]
+    pub adaptive_mode_enabled: bool,
 }
 
 fn default_meet_instances() -> Vec<String> {
@@ -59,6 +61,7 @@ impl Default for Settings {
             notification_hand_raised: true,
             notification_message_received: true,
             background_mode: "off".to_string(),
+            adaptive_mode_enabled: true,
         }
     }
 }
@@ -178,6 +181,21 @@ impl SettingsStore {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .background_mode = mode;
+        self.save();
+    }
+
+    pub fn is_adaptive_mode_enabled(&self) -> bool {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .adaptive_mode_enabled
+    }
+
+    pub fn set_adaptive_mode_enabled(&self, enabled: bool) {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .adaptive_mode_enabled = enabled;
         self.save();
     }
 
@@ -402,6 +420,25 @@ mod tests {
         }
         let store = SettingsStore::new(path);
         assert_eq!(store.get_background_mode(), "image:3");
+    }
+
+    #[test]
+    fn test_adaptive_mode_enabled_default_true() {
+        let s = Settings::default();
+        assert!(s.adaptive_mode_enabled);
+    }
+
+    #[test]
+    fn test_set_adaptive_mode_enabled_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            assert!(store.is_adaptive_mode_enabled());
+            store.set_adaptive_mode_enabled(false);
+        }
+        let store = SettingsStore::new(path);
+        assert!(!store.is_adaptive_mode_enabled());
     }
 
     #[test]
