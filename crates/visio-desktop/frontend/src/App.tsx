@@ -1080,9 +1080,11 @@ function CallView({
   audioOutputs,
   videoInputs,
   selectedAudioInput,
+  selectedAudioOutput,
   selectedVideoInput,
   activeSpeakers,
   onSelectAudioInput,
+  onSelectAudioOutput,
   onSelectVideoInput,
   waitingParticipants,
   setWaitingParticipants,
@@ -1121,8 +1123,10 @@ function CallView({
   audioOutputs: NativeAudioDevice[];
   videoInputs: NativeVideoDevice[];
   selectedAudioInput: string;
+  selectedAudioOutput: string;
   selectedVideoInput: string;
   onSelectAudioInput: (name: string) => void;
+  onSelectAudioOutput: (name: string) => void;
   onSelectVideoInput: (uniqueId: string) => void;
   waitingParticipants: Array<{id: string, username: string}>;
   setWaitingParticipants: React.Dispatch<React.SetStateAction<Array<{id: string, username: string}>>>;
@@ -1650,7 +1654,8 @@ function CallView({
                 <input
                   type="radio"
                   name="audioOutput"
-                  onChange={() => invoke("select_audio_output", { deviceName: d.name })}
+                  checked={selectedAudioOutput === d.name}
+                  onChange={() => onSelectAudioOutput(d.name)}
                 />
                 {d.name}
                 {d.is_default && " \u2605"}
@@ -2012,6 +2017,7 @@ export default function App() {
   const [audioOutputs, setAudioOutputs] = useState<NativeAudioDevice[]>([]);
   const [videoInputs, setVideoInputs] = useState<NativeVideoDevice[]>([]);
   const [selectedAudioInput, setSelectedAudioInput] = useState("");
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
   const [selectedVideoInput, setSelectedVideoInput] = useState("");
 
   const viewRef = useRef(view);
@@ -2032,6 +2038,11 @@ export default function App() {
         setSelectedAudioInput((prev) => {
           if (prev) return prev;
           const def = inputs.find((d) => d.is_default);
+          return def ? def.name : "";
+        });
+        setSelectedAudioOutput((prev) => {
+          if (prev) return prev;
+          const def = outputs.find((d) => d.is_default);
           return def ? def.name : "";
         });
         setSelectedVideoInput((prev) => {
@@ -2327,6 +2338,15 @@ export default function App() {
     }
   };
 
+  const handleSelectAudioOutput = async (name: string) => {
+    setSelectedAudioOutput(name);
+    try {
+      await invoke("select_audio_output", { deviceName: name });
+    } catch (e) {
+      console.error("Failed to select audio output:", e);
+    }
+  };
+
   const handleSelectVideoInput = async (uniqueId: string) => {
     setSelectedVideoInput(uniqueId);
     try {
@@ -2440,8 +2460,10 @@ export default function App() {
             audioOutputs={audioOutputs}
             videoInputs={videoInputs}
             selectedAudioInput={selectedAudioInput}
+            selectedAudioOutput={selectedAudioOutput}
             selectedVideoInput={selectedVideoInput}
             onSelectAudioInput={handleSelectAudioInput}
+            onSelectAudioOutput={handleSelectAudioOutput}
             onSelectVideoInput={handleSelectVideoInput}
             waitingParticipants={waitingParticipants}
             setWaitingParticipants={setWaitingParticipants}
