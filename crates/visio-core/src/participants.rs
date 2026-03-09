@@ -90,6 +90,8 @@ mod tests {
             is_muted: false,
             has_video: false,
             video_track_sid: None,
+            has_screen_share: false,
+            screen_share_track_sid: None,
             connection_quality: ConnectionQuality::Good,
         }
     }
@@ -197,5 +199,57 @@ mod tests {
         assert!(p.is_muted);
         assert!(p.has_video, "muting mic should not clear video");
         assert_eq!(p.video_track_sid.as_deref(), Some("TR_CAM_1"));
+    }
+
+    #[test]
+    fn track_subscribed_screen_share_sets_fields() {
+        let mut mgr = ParticipantManager::new();
+        mgr.add_participant(make_participant("p1", "Alice"));
+
+        if let Some(p) = mgr.participant_mut("p1") {
+            p.has_screen_share = true;
+            p.screen_share_track_sid = Some("TR_SCREEN_1".to_string());
+        }
+
+        let p = mgr.participant("p1").unwrap();
+        assert!(p.has_screen_share);
+        assert_eq!(p.screen_share_track_sid.as_deref(), Some("TR_SCREEN_1"));
+    }
+
+    #[test]
+    fn track_muted_screen_share_clears_fields() {
+        let mut mgr = ParticipantManager::new();
+        let mut p = make_participant("p1", "Alice");
+        p.has_screen_share = true;
+        p.screen_share_track_sid = Some("TR_SCREEN_1".to_string());
+        p.has_video = true;
+        p.video_track_sid = Some("TR_CAM_1".to_string());
+        mgr.add_participant(p);
+
+        if let Some(p) = mgr.participant_mut("p1") {
+            p.has_screen_share = false;
+            p.screen_share_track_sid = None;
+        }
+
+        let p = mgr.participant("p1").unwrap();
+        assert!(!p.has_screen_share);
+        assert!(p.screen_share_track_sid.is_none());
+        assert!(p.has_video);
+        assert_eq!(p.video_track_sid.as_deref(), Some("TR_CAM_1"));
+    }
+
+    #[test]
+    fn track_unmuted_screen_share_restores_fields() {
+        let mut mgr = ParticipantManager::new();
+        mgr.add_participant(make_participant("p1", "Alice"));
+
+        if let Some(p) = mgr.participant_mut("p1") {
+            p.has_screen_share = true;
+            p.screen_share_track_sid = Some("TR_SCREEN_1".to_string());
+        }
+
+        let p = mgr.participant("p1").unwrap();
+        assert!(p.has_screen_share);
+        assert_eq!(p.screen_share_track_sid.as_deref(), Some("TR_SCREEN_1"));
     }
 }

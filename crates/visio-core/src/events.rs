@@ -66,6 +66,8 @@ pub struct ParticipantInfo {
     pub is_muted: bool,
     pub has_video: bool,
     pub video_track_sid: Option<String>,
+    pub has_screen_share: bool,
+    pub screen_share_track_sid: Option<String>,
     pub connection_quality: ConnectionQuality,
 }
 

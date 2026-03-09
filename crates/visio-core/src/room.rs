@@ -167,6 +167,8 @@ impl RoomManager {
             } else {
                 None
             },
+            has_screen_share: false,
+            screen_share_track_sid: None,
             connection_quality: ConnectionQuality::Excellent,
         })
     }
@@ -791,6 +793,8 @@ impl RoomManager {
             is_muted,
             has_video: false,
             video_track_sid: None,
+            has_screen_share: false,
+            screen_share_track_sid: None,
             connection_quality: ConnectionQuality::Good,
         }
     }
@@ -905,8 +909,16 @@ impl RoomManager {
                         if let Some(p) = pm.participant_mut(&psid)
                             && track_kind == TrackKind::Video
                         {
-                            p.has_video = true;
-                            p.video_track_sid = Some(track_sid.clone());
+                            match source {
+                                TrackSource::ScreenShare => {
+                                    p.has_screen_share = true;
+                                    p.screen_share_track_sid = Some(track_sid.clone());
+                                }
+                                _ => {
+                                    p.has_video = true;
+                                    p.video_track_sid = Some(track_sid.clone());
+                                }
+                            }
                         }
                     }
 
@@ -962,10 +974,16 @@ impl RoomManager {
                     let is_audio = publication.kind() == LkTrackKind::Audio;
 
                     if is_video {
+                        let is_screen_share = publication.source() == LkTrackSource::Screenshare;
                         let mut pm = participants.lock().await;
                         if let Some(p) = pm.participant_mut(&psid) {
-                            p.has_video = false;
-                            p.video_track_sid = None;
+                            if is_screen_share {
+                                p.has_screen_share = false;
+                                p.screen_share_track_sid = None;
+                            } else {
+                                p.has_video = false;
+                                p.video_track_sid = None;
+                            }
                         }
                         subscribed_tracks.lock().await.remove(&track_sid);
                     }
@@ -993,6 +1011,10 @@ impl RoomManager {
                                 p.has_video = false;
                                 p.video_track_sid = None;
                             }
+                            TrackSource::ScreenShare => {
+                                p.has_screen_share = false;
+                                p.screen_share_track_sid = None;
+                            }
                             _ => {}
                         }
                     }
@@ -1019,6 +1041,10 @@ impl RoomManager {
                             TrackSource::Camera => {
                                 p.has_video = true;
                                 p.video_track_sid = Some(track_sid);
+                            }
+                            TrackSource::ScreenShare => {
+                                p.has_screen_share = true;
+                                p.screen_share_track_sid = Some(track_sid);
                             }
                             _ => {}
                         }
