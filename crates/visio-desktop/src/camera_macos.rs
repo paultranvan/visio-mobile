@@ -10,10 +10,154 @@ use std::sync::Mutex;
 
 use livekit::webrtc::prelude::*;
 use livekit::webrtc::video_source::native::NativeVideoSource;
+use serde::Serialize;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool, NSObject};
 use objc2::{define_class, msg_send, ClassType};
+
+// ---------------------------------------------------------------------------
+// Video device enumeration
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Clone)]
+pub struct VideoDeviceInfo {
+    pub name: String,
+    pub unique_id: String,
+    pub is_default: bool,
+}
+
+/// List available video capture devices via AVFoundation.
+pub fn list_cameras() -> Vec<VideoDeviceInfo> {
+    unsafe { list_cameras_avfoundation() }
+}
+
+unsafe fn list_cameras_avfoundation() -> Vec<VideoDeviceInfo> {
+    let device_cls = match AnyClass::get(c"AVCaptureDevice") {
+        Some(cls) => cls,
+        None => return Vec::new(),
+    };
+    let nsstring_cls = match AnyClass::get(c"NSString") {
+        Some(cls) => cls,
+        None => return Vec::new(),
+    };
+    let nsarray_cls = match AnyClass::get(c"NSArray") {
+        Some(cls) => cls,
+        None => return Vec::new(),
+    };
+    let discovery_cls = match AnyClass::get(c"AVCaptureDeviceDiscoverySession") {
+        Some(cls) => cls,
+        None => return Vec::new(),
+    };
+
+    // Get default device for comparison
+    let default_ptr: *mut AnyObject = unsafe {
+        msg_send![device_cls, defaultDeviceWithMediaType: AVMediaTypeVideo]
+    };
+    let default_uid: Option<String> = if !default_ptr.is_null() {
+        let uid_ns: *mut AnyObject = unsafe { msg_send![default_ptr, uniqueID] };
+        if !uid_ns.is_null() {
+            let cstr: *const c_char = unsafe { msg_send![uid_ns, UTF8String] };
+            if !cstr.is_null() {
+                Some(
+                    unsafe { std::ffi::CStr::from_ptr(cstr) }
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Create device type strings
+    let builtin_type: Retained<AnyObject> = unsafe {
+        msg_send![nsstring_cls, stringWithUTF8String: c"AVCaptureDeviceTypeBuiltInWideAngleCamera".as_ptr()]
+    };
+    let external_type: Retained<AnyObject> = unsafe {
+        msg_send![nsstring_cls, stringWithUTF8String: c"AVCaptureDeviceTypeExternal".as_ptr()]
+    };
+
+    // Create NSArray with both device types
+    let types_array: Retained<AnyObject> = unsafe {
+        let objects: [*const AnyObject; 2] = [&*builtin_type, &*external_type];
+        msg_send![nsarray_cls, arrayWithObjects: objects.as_ptr(), count: 2usize]
+    };
+
+    // Create discovery session
+    // position: 0 = AVCaptureDevicePositionUnspecified
+    let session: *mut AnyObject = unsafe {
+        msg_send![
+            discovery_cls,
+            discoverySessionWithDeviceTypes: &*types_array,
+            mediaType: AVMediaTypeVideo,
+            position: 0i64
+        ]
+    };
+    if session.is_null() {
+        return Vec::new();
+    }
+
+    // Get devices array
+    let devices: *mut AnyObject = unsafe { msg_send![session, devices] };
+    if devices.is_null() {
+        return Vec::new();
+    }
+
+    let count: usize = unsafe { msg_send![devices, count] };
+    let mut result = Vec::with_capacity(count);
+
+    for i in 0..count {
+        let device: *mut AnyObject = unsafe { msg_send![devices, objectAtIndex: i] };
+        if device.is_null() {
+            continue;
+        }
+
+        // Get localizedName
+        let name_ns: *mut AnyObject = unsafe { msg_send![device, localizedName] };
+        let name = if !name_ns.is_null() {
+            let cstr: *const c_char = unsafe { msg_send![name_ns, UTF8String] };
+            if !cstr.is_null() {
+                unsafe { std::ffi::CStr::from_ptr(cstr) }
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                String::from("Unknown")
+            }
+        } else {
+            String::from("Unknown")
+        };
+
+        // Get uniqueID
+        let uid_ns: *mut AnyObject = unsafe { msg_send![device, uniqueID] };
+        let unique_id = if !uid_ns.is_null() {
+            let cstr: *const c_char = unsafe { msg_send![uid_ns, UTF8String] };
+            if !cstr.is_null() {
+                unsafe { std::ffi::CStr::from_ptr(cstr) }
+                    .to_string_lossy()
+                    .into_owned()
+            } else {
+                continue;
+            }
+        } else {
+            continue;
+        };
+
+        let is_default = default_uid.as_deref() == Some(&unique_id);
+
+        result.push(VideoDeviceInfo {
+            name,
+            unique_id,
+            is_default,
+        });
+    }
+
+    result
+}
 
 // ---------------------------------------------------------------------------
 // CoreMedia / CoreVideo C FFI

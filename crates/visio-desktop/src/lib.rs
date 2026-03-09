@@ -724,6 +724,18 @@ fn list_audio_output_devices() -> Vec<audio_cpal::AudioDeviceInfo> {
     audio_cpal::list_output_devices()
 }
 
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn list_video_input_devices() -> Vec<camera_macos::VideoDeviceInfo> {
+    camera_macos::list_cameras()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn list_video_input_devices() -> Vec<serde_json::Value> {
+    Vec::new()
+}
+
 // ---------------------------------------------------------------------------
 // Lobby commands
 // ---------------------------------------------------------------------------
@@ -1174,6 +1186,7 @@ pub fn run() {
             load_background_image,
             list_audio_input_devices,
             list_audio_output_devices,
+            list_video_input_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
