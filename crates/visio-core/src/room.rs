@@ -44,6 +44,7 @@ pub struct RoomManager {
     /// Chat unread tracking (shared with event loop).
     chat_open: Arc<AtomicBool>,
     unread_count: Arc<AtomicU32>,
+    adaptive_stream: bool,
 }
 
 impl Default for RoomManager {
@@ -71,6 +72,7 @@ impl RoomManager {
             lobby_cancel: Arc::new(tokio::sync::Notify::new()),
             chat_open: Arc::new(AtomicBool::new(false)),
             unread_count: Arc::new(AtomicU32::new(0)),
+            adaptive_stream: true,
         }
     }
 
@@ -118,6 +120,11 @@ impl RoomManager {
     /// Get the current unread message count.
     pub fn unread_count(&self) -> u32 {
         self.unread_count.load(Ordering::Relaxed)
+    }
+
+    /// Disable adaptive streaming (useful when the SDK cannot detect display size).
+    pub fn set_adaptive_stream(&mut self, enabled: bool) {
+        self.adaptive_stream = enabled;
     }
 
     /// Get current connection state.
@@ -248,7 +255,7 @@ impl RoomManager {
 
         let mut options = RoomOptions::default();
         options.auto_subscribe = true;
-        options.adaptive_stream = true;
+        options.adaptive_stream = self.adaptive_stream;
         options.dynacast = true;
 
         let (room, events) = Room::connect(livekit_url, token, options)
@@ -503,6 +510,7 @@ impl RoomManager {
         let connection_state = self.connection_state.clone();
         let emitter = self.emitter.clone();
         let last_meet_url = self.last_meet_url.clone();
+        let adaptive_stream = self.adaptive_stream;
         let chat_open = self.chat_open.clone();
         let unread_count = self.unread_count.clone();
 
@@ -530,7 +538,7 @@ impl RoomManager {
 
                                 let mut options = RoomOptions::default();
                                 options.auto_subscribe = true;
-                                options.adaptive_stream = true;
+                                options.adaptive_stream = adaptive_stream;
                                 options.dynacast = true;
 
                                 match Room::connect(&livekit_url, &token, options).await {
