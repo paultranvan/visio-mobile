@@ -27,8 +27,7 @@
 		A10001000000000000000016 /* ToolbarFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001A /* ToolbarFix.swift */; };
 		A10001000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001B /* Assets.xcassets */; };
 		A10001000000000000000018 /* InCallSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001C /* InCallSettingsSheet.swift */; };
-		A1000100000000000000000B /* libvisio.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio.a */; };
-		A1000100000000000000000C /* libvisio_video.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000C /* libvisio_video.a */; };
+		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
 		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
 		A10001000000000000000019 /* OidcAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001D /* OidcAuthManager.swift */; };
 /* End PBXBuildFile section */
@@ -43,8 +42,7 @@
 		A10002000000000000000008 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		A10002000000000000000009 /* VideoLayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLayerView.swift; sourceTree = "<group>"; };
 		A1000200000000000000000A /* visio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = visio.swift; sourceTree = "<group>"; };
-		A1000200000000000000000B /* libvisio.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvisio.a; path = "../target/aarch64-apple-ios-sim/release/libvisio.a"; sourceTree = "<group>"; };
-		A1000200000000000000000C /* libvisio_video.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvisio_video.a; path = "../target/aarch64-apple-ios-sim/release/libvisio_video.a"; sourceTree = "<group>"; };
+		A1000200000000000000000B /* libvisio_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvisio_ffi.a; path = "../target/aarch64-apple-ios-sim/release/libvisio_ffi.a"; sourceTree = "<group>"; };
 		A1000200000000000000000D /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 		A1000200000000000000000E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1000200000000000000000F /* visioFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = visioFFI.h; sourceTree = "<group>"; };
@@ -70,8 +68,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000100000000000000000B /* libvisio.a in Frameworks */,
-				A1000100000000000000000C /* libvisio_video.a in Frameworks */,
+				A1000100000000000000000B /* libvisio_ffi.a in Frameworks */,
 				A1000100000000000000000D /* libresolv.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -135,8 +132,7 @@
 		A10005000000000000000005 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				A1000200000000000000000B /* libvisio.a */,
-				A1000200000000000000000C /* libvisio_video.a */,
+				A1000200000000000000000B /* libvisio_ffi.a */,
 				A1000200000000000000000D /* libresolv.tbd */,
 			);
 			name = Frameworks;
@@ -319,7 +315,7 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/aarch64-apple-ios-sim/release";
 				MARKETING_VERSION = 0.4.0;
 				OTHER_LDFLAGS = (
-					"-lvisio",
+					"-lvisio_ffi",
 					"-ObjC",
 					"-lc++",
 					"-framework",
@@ -352,7 +348,7 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/aarch64-apple-ios/release";
 				MARKETING_VERSION = 0.4.0;
 				OTHER_LDFLAGS = (
-					"-lvisio",
+					"-lvisio_ffi",
 					"-ObjC",
 					"-lc++",
 					"-framework",

@@ -30,12 +30,8 @@ jobs:
 
       - name: Compile Rust native libraries
         run: |
-          cargo build --target aarch64-apple-ios -p visio-ffi -p visio-video --release
+          cargo build --target aarch64-apple-ios -p visio-ffi --release
           rm -f target/aarch64-apple-ios/release/*.dylib
-          # Merge both static libs into one to avoid 733 duplicate WebRTC symbols
-          libtool -static -o target/aarch64-apple-ios/release/libvisio.a \
-            target/aarch64-apple-ios/release/libvisio_ffi.a \
-            target/aarch64-apple-ios/release/libvisio_video.a
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
