@@ -91,6 +91,14 @@ function buildDisplayItems(participants: Participant[], t: TFunction): DisplayIt
   return items;
 }
 
+interface ScreenSource {
+  id: string;
+  name: string;
+  source_type: string;
+  width: number;
+  height: number;
+}
+
 interface ChatMessage {
   id: string;
   sender_sid: string;
@@ -1110,6 +1118,71 @@ function WaitingScreen({ onCancel, t }: { onCancel: () => void; t: (k: string) =
   );
 }
 
+// -- Source Picker Modal ----------------------------------------------------
+
+function SourcePickerModal({
+  sources,
+  onSelect,
+  onClose,
+}: {
+  sources: ScreenSource[];
+  onSelect: (sourceId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const monitors = sources.filter(s => s.source_type === "monitor");
+  const windows = sources.filter(s => s.source_type === "window");
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="settings-modal source-picker" onClick={e => e.stopPropagation()}>
+        <div className="settings-header">
+          <span>{t("call.selectSource")}</span>
+          <button onClick={onClose}><RiCloseLine size={20} /></button>
+        </div>
+        <div className="settings-body" style={{ maxHeight: "400px", overflowY: "auto" }}>
+          {monitors.length > 0 && (
+            <>
+              <h4 style={{ margin: "0 0 8px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                {t("call.monitors")}
+              </h4>
+              {monitors.map(s => (
+                <button
+                  key={s.id}
+                  className="source-item"
+                  onClick={() => onSelect(s.id)}
+                >
+                  <ScreenShareIcon size={18} />
+                  <span>{s.name}</span>
+                  <span className="source-dim">{s.width}×{s.height}</span>
+                </button>
+              ))}
+            </>
+          )}
+          {windows.length > 0 && (
+            <>
+              <h4 style={{ margin: "16px 0 8px", fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                {t("call.windows")}
+              </h4>
+              {windows.map(s => (
+                <button
+                  key={s.id}
+                  className="source-item"
+                  onClick={() => onSelect(s.id)}
+                >
+                  <RiApps2Line size={18} />
+                  <span>{s.name}</span>
+                  <span className="source-dim">{s.width}×{s.height}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Call View --------------------------------------------------------------
 
 function CallView({
@@ -1200,6 +1273,8 @@ function CallView({
   const t = useT();
   const [focusedItem, setFocusedItem] = useState<FocusItem>(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [screenSources, setScreenSources] = useState<ScreenSource[]>([]);
   const [chatInput, setChatInput] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const [bgMode, setBgMode] = useState("off");
@@ -1690,10 +1765,11 @@ function CallView({
               }
             } else {
               try {
-                await invoke("start_screen_share");
-                setIsScreenSharing(true);
+                const sources = await invoke<ScreenSource[]>("list_screen_sources");
+                setScreenSources(sources);
+                setShowSourcePicker(true);
               } catch (e) {
-                console.error("Failed to start screen share:", e);
+                console.error("Failed to list screen sources:", e);
               }
             }
           }}
@@ -1849,6 +1925,21 @@ function CallView({
             </div>
           </div>
         </div>
+      )}
+      {showSourcePicker && (
+        <SourcePickerModal
+          sources={screenSources}
+          onSelect={async (sourceId) => {
+            setShowSourcePicker(false);
+            try {
+              await invoke("start_screen_share", { sourceId });
+              setIsScreenSharing(true);
+            } catch (e) {
+              console.error("Failed to start screen share:", e);
+            }
+          }}
+          onClose={() => setShowSourcePicker(false)}
+        />
       )}
     </div>
   );

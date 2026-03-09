@@ -10,6 +10,7 @@ use visio_core::{
 #[cfg(target_os = "macos")]
 mod camera_macos;
 mod audio_cpal;
+mod screen_capture;
 
 // ---------------------------------------------------------------------------
 // Global AppHandle for the C video callback
@@ -59,6 +60,7 @@ struct VisioState {
     audio_playout: std::sync::Mutex<audio_cpal::CpalAudioPlayout>,
     playout_buffer: Arc<AudioPlayoutBuffer>,
     audio_capture: std::sync::Mutex<Option<audio_cpal::CpalAudioCapture>>,
+    screen_capture: std::sync::Mutex<Option<screen_capture::ScreenCapture>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -700,25 +702,27 @@ async fn send_reaction(state: tauri::State<'_, VisioState>, emoji: String) -> Re
     room.send_reaction(&emoji).await.map_err(|e| e.to_string())
 }
 
-// TODO: Implement platform-specific screen capture:
-//   - macOS: CGDisplayStream or ScreenCaptureKit (macOS 12.3+)
-//   - Linux: PipeWire / XDG Desktop Portal
-//   - Windows: DXGI Desktop Duplication
-// The NativeVideoSource is published and stored in MeetingControls.
-// Platform capture code should call screen_share_source() to get it
-// and feed I420 frames, similar to camera_macos::MacCameraCapture.
+#[tauri::command]
+fn list_screen_sources() -> Vec<screen_capture::ScreenSource> {
+    screen_capture::list_sources()
+}
+
 #[tauri::command]
 async fn start_screen_share(
     state: tauri::State<'_, VisioState>,
+    source_id: String,
 ) -> Result<(), String> {
     let controls = state.controls.lock().await;
-    let _source = controls
+    let source = controls
         .publish_screen_share()
         .await
         .map_err(|e| e.to_string())?;
 
-    // TODO: Start platform screen capture feeding frames into _source
-    tracing::warn!("screen share track published but no capture yet — remote participants will see a black screen");
+    let capture = screen_capture::ScreenCapture::start(&source_id, source)
+        .map_err(|e| format!("screen capture: {e}"))?;
+
+    let mut cap = state.screen_capture.lock().unwrap_or_else(|e| e.into_inner());
+    *cap = Some(capture);
 
     Ok(())
 }
@@ -727,6 +731,13 @@ async fn start_screen_share(
 async fn stop_screen_share(
     state: tauri::State<'_, VisioState>,
 ) -> Result<(), String> {
+    {
+        let mut cap = state.screen_capture.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(mut capture) = cap.take() {
+            capture.stop();
+        }
+    }
+
     let controls = state.controls.lock().await;
     controls
         .stop_screen_share()
@@ -1251,6 +1262,7 @@ pub fn run() {
         audio_playout: std::sync::Mutex::new(audio_playout),
         playout_buffer,
         audio_capture: std::sync::Mutex::new(None),
+        screen_capture: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()
@@ -1296,6 +1308,12 @@ pub fn run() {
                 {
                     let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(mut capture) = cam.take() {
+                        capture.stop();
+                    }
+                }
+                {
+                    let mut sc = state.screen_capture.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(mut capture) = sc.take() {
                         capture.stop();
                     }
                 }
@@ -1347,6 +1365,7 @@ pub fn run() {
             create_room,
             get_session_state,
             send_reaction,
+            list_screen_sources,
             start_screen_share,
             stop_screen_share,
             set_background_mode,

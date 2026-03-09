@@ -1833,6 +1833,35 @@ main {
   transform: scale(1.2);
 }
 
+/* -- Source Picker --------------------------------------------------------- */
+
+.source-picker {
+  width: 420px;
+}
+.source-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  text-align: left;
+}
+.source-item:hover {
+  background: var(--bg-tertiary);
+}
+.source-dim {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 /* -- Reaction Overlay ------------------------------------------------------ */
 
 .reaction-overlay {

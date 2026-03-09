@@ -177,5 +177,8 @@
   "adaptive.car": "Modalità auto",
   "adaptive.auto": "Auto",
   "adaptive.override": "Forza modalità",
-  "adaptive.audioOnly": "Solo audio"
+  "adaptive.audioOnly": "Solo audio",
+  "call.selectSource": "Condividi schermo",
+  "call.monitors": "Schermi",
+  "call.windows": "Finestre"
 }

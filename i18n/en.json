@@ -177,5 +177,8 @@
   "adaptive.car": "Car mode",
   "adaptive.auto": "Auto",
   "adaptive.override": "Mode override",
-  "adaptive.audioOnly": "Audio only"
+  "adaptive.audioOnly": "Audio only",
+  "call.selectSource": "Share your screen",
+  "call.monitors": "Screens",
+  "call.windows": "Windows"
 }

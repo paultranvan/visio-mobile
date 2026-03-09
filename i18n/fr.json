@@ -177,5 +177,8 @@
   "adaptive.car": "Mode voiture",
   "adaptive.auto": "Auto",
   "adaptive.override": "Forcer le mode",
-  "adaptive.audioOnly": "Audio uniquement"
+  "adaptive.audioOnly": "Audio uniquement",
+  "call.selectSource": "Partager votre écran",
+  "call.monitors": "Écrans",
+  "call.windows": "Fenêtres"
 }
