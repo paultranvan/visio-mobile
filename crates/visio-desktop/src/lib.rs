@@ -3,8 +3,8 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    ChatService, MeetingControls, RoomManager, SessionManager, SessionState, SettingsStore,
-    TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
+    AudioPlayoutBuffer, ChatService, MeetingControls, RoomManager, SessionManager, SessionState,
+    SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 
 #[cfg(target_os = "macos")]
@@ -56,7 +56,8 @@ struct VisioState {
     settings: SettingsStore,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
-    _audio_playout: audio_cpal::CpalAudioPlayout,
+    audio_playout: std::sync::Mutex<audio_cpal::CpalAudioPlayout>,
+    playout_buffer: Arc<AudioPlayoutBuffer>,
     audio_capture: std::sync::Mutex<Option<audio_cpal::CpalAudioCapture>>,
 }
 
@@ -714,6 +715,115 @@ fn load_background_image(id: u8, jpeg_path: String) -> Result<(), String> {
     visio_ffi::blur::BlurProcessor::load_replacement_image(id, &jpeg_bytes, 640, 480)
 }
 
+#[tauri::command]
+fn list_audio_input_devices() -> Vec<audio_cpal::AudioDeviceInfo> {
+    audio_cpal::list_input_devices()
+}
+
+#[tauri::command]
+fn list_audio_output_devices() -> Vec<audio_cpal::AudioDeviceInfo> {
+    audio_cpal::list_output_devices()
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn list_video_input_devices() -> Vec<camera_macos::VideoDeviceInfo> {
+    camera_macos::list_cameras()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn list_video_input_devices() -> Vec<serde_json::Value> {
+    Vec::new()
+}
+
+// ---------------------------------------------------------------------------
+// Device selection commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn select_audio_input(
+    state: tauri::State<'_, VisioState>,
+    device_name: String,
+) -> Result<(), String> {
+    let device = audio_cpal::find_input_device(&device_name)
+        .ok_or_else(|| format!("Audio input device not found: {device_name}"))?;
+
+    // Stop existing capture
+    {
+        let mut cap = state.audio_capture.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(capture) = cap.take() {
+            capture.stop();
+        }
+    }
+
+    // Restart with selected device if mic is active
+    let controls = state.controls.lock().await;
+    if let Some(source) = controls.audio_source().await {
+        let capture = audio_cpal::CpalAudioCapture::start_with_device(device, source)
+            .map_err(|e| format!("audio capture: {e}"))?;
+        let mut cap = state.audio_capture.lock().unwrap_or_else(|e| e.into_inner());
+        *cap = Some(capture);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn select_audio_output(
+    state: tauri::State<'_, VisioState>,
+    device_name: String,
+) -> Result<(), String> {
+    let device = audio_cpal::find_output_device(&device_name)
+        .ok_or_else(|| format!("Audio output device not found: {device_name}"))?;
+
+    let new_playout = audio_cpal::CpalAudioPlayout::start_with_device(
+        device,
+        state.playout_buffer.clone(),
+    )?;
+
+    let mut playout = state.audio_playout.lock().unwrap_or_else(|e| e.into_inner());
+    *playout = new_playout;
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn select_video_input(
+    state: tauri::State<'_, VisioState>,
+    unique_id: String,
+) -> Result<(), String> {
+    let controls = state.controls.lock().await;
+    let source = controls.video_source().await
+        .ok_or("No video source — enable camera first")?;
+
+    // Stop existing camera
+    {
+        let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(mut capture) = cam.take() {
+            capture.stop();
+        }
+    }
+
+    // Start with selected camera
+    let capture = camera_macos::MacCameraCapture::start_with_unique_id(&unique_id, source)
+        .map_err(|e| format!("camera: {e}"))?;
+    let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
+    *cam = Some(capture);
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+async fn select_video_input(
+    _state: tauri::State<'_, VisioState>,
+    _unique_id: String,
+) -> Result<(), String> {
+    Err("Video device selection not implemented on this platform".into())
+}
+
 // ---------------------------------------------------------------------------
 // Lobby commands
 // ---------------------------------------------------------------------------
@@ -1034,7 +1144,7 @@ pub fn run() {
     let controls = room_manager.controls();
     let chat = room_manager.chat();
 
-    let audio_playout = audio_cpal::CpalAudioPlayout::start(playout_buffer)
+    let audio_playout = audio_cpal::CpalAudioPlayout::start(playout_buffer.clone())
         .expect("failed to start audio playout");
 
     let room_arc = Arc::new(Mutex::new(room_manager));
@@ -1063,7 +1173,8 @@ pub fn run() {
         settings,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
-        _audio_playout: audio_playout,
+        audio_playout: std::sync::Mutex::new(audio_playout),
+        playout_buffer,
         audio_capture: std::sync::Mutex::new(None),
     };
 
@@ -1073,6 +1184,9 @@ pub fn run() {
         .setup(|app| {
             // Store handle globally for the C video callback
             let _ = APP_HANDLE.set(app.handle().clone());
+
+            // Store handle for audio error event emission
+            audio_cpal::set_app_handle(app.handle().clone());
 
             // Register the desktop video frame callback
             unsafe {
@@ -1162,6 +1276,12 @@ pub fn run() {
             get_background_mode,
             load_blur_model,
             load_background_image,
+            list_audio_input_devices,
+            list_audio_output_devices,
+            list_video_input_devices,
+            select_audio_input,
+            select_audio_output,
+            select_video_input,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

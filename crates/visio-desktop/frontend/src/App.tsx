@@ -112,6 +112,16 @@ import nl from "../../../../i18n/nl.json";
 const translations: Record<string, Record<string, string>> = { en, fr, de, es, it, nl };
 const SUPPORTED_LANGS = Object.keys(translations);
 
+interface NativeAudioDevice {
+  name: string;
+  is_default: boolean;
+}
+interface NativeVideoDevice {
+  name: string;
+  unique_id: string;
+  is_default: boolean;
+}
+
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/;
 
 function extractSlug(input: string): string | null {
@@ -1070,9 +1080,11 @@ function CallView({
   audioOutputs,
   videoInputs,
   selectedAudioInput,
+  selectedAudioOutput,
   selectedVideoInput,
   activeSpeakers,
   onSelectAudioInput,
+  onSelectAudioOutput,
   onSelectVideoInput,
   waitingParticipants,
   setWaitingParticipants,
@@ -1107,13 +1119,15 @@ function CallView({
   onShowCamPicker: () => void;
   showMicPicker: boolean;
   showCamPicker: boolean;
-  audioInputs: MediaDeviceInfo[];
-  audioOutputs: MediaDeviceInfo[];
-  videoInputs: MediaDeviceInfo[];
+  audioInputs: NativeAudioDevice[];
+  audioOutputs: NativeAudioDevice[];
+  videoInputs: NativeVideoDevice[];
   selectedAudioInput: string;
+  selectedAudioOutput: string;
   selectedVideoInput: string;
-  onSelectAudioInput: (id: string) => void;
-  onSelectVideoInput: (id: string) => void;
+  onSelectAudioInput: (name: string) => void;
+  onSelectAudioOutput: (name: string) => void;
+  onSelectVideoInput: (uniqueId: string) => void;
   waitingParticipants: Array<{id: string, username: string}>;
   setWaitingParticipants: React.Dispatch<React.SetStateAction<Array<{id: string, username: string}>>>;
   roomId?: string;
@@ -1616,14 +1630,15 @@ function CallView({
           <div className="device-section">
             <div className="device-section-title">{t("device.microphone")}</div>
             {audioInputs.map((d) => (
-              <label key={d.deviceId} className="device-option">
+              <label key={d.name} className="device-option">
                 <input
                   type="radio"
                   name="audioInput"
-                  checked={selectedAudioInput === d.deviceId}
-                  onChange={() => onSelectAudioInput(d.deviceId)}
+                  checked={selectedAudioInput === d.name}
+                  onChange={() => onSelectAudioInput(d.name)}
                 />
-                {d.label || t("device.microphone")}
+                {d.name}
+                {d.is_default && " \u2605"}
               </label>
             ))}
             {audioInputs.length === 0 && (
@@ -1635,9 +1650,15 @@ function CallView({
           <div className="device-section">
             <div className="device-section-title">{t("device.speaker")}</div>
             {audioOutputs.map((d) => (
-              <label key={d.deviceId} className="device-option">
-                <input type="radio" name="audioOutput" />
-                {d.label || t("device.speaker")}
+              <label key={d.name} className="device-option">
+                <input
+                  type="radio"
+                  name="audioOutput"
+                  checked={selectedAudioOutput === d.name}
+                  onChange={() => onSelectAudioOutput(d.name)}
+                />
+                {d.name}
+                {d.is_default && " \u2605"}
               </label>
             ))}
             {audioOutputs.length === 0 && (
@@ -1655,14 +1676,15 @@ function CallView({
           <div className="device-section">
             <div className="device-section-title">{t("device.camera")}</div>
             {videoInputs.map((d) => (
-              <label key={d.deviceId} className="device-option">
+              <label key={d.unique_id} className="device-option">
                 <input
                   type="radio"
                   name="videoInput"
-                  checked={selectedVideoInput === d.deviceId}
-                  onChange={() => onSelectVideoInput(d.deviceId)}
+                  checked={selectedVideoInput === d.unique_id}
+                  onChange={() => onSelectVideoInput(d.unique_id)}
                 />
-                {d.label || t("device.camera")}
+                {d.name}
+                {d.is_default && " \u2605"}
               </label>
             ))}
             {videoInputs.length === 0 && (
@@ -1991,10 +2013,11 @@ export default function App() {
   }, [theme]);
 
   // Device enumeration
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
-  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioInputs, setAudioInputs] = useState<NativeAudioDevice[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<NativeAudioDevice[]>([]);
+  const [videoInputs, setVideoInputs] = useState<NativeVideoDevice[]>([]);
   const [selectedAudioInput, setSelectedAudioInput] = useState("");
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
   const [selectedVideoInput, setSelectedVideoInput] = useState("");
 
   const viewRef = useRef(view);
@@ -2004,18 +2027,49 @@ export default function App() {
   useEffect(() => {
     const enumerate = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        setAudioInputs(devices.filter((d) => d.kind === "audioinput"));
-        setAudioOutputs(devices.filter((d) => d.kind === "audiooutput"));
-        setVideoInputs(devices.filter((d) => d.kind === "videoinput"));
-      } catch {
-        // Not available in Tauri webview without permissions
+        const inputs: NativeAudioDevice[] = await invoke("list_audio_input_devices");
+        const outputs: NativeAudioDevice[] = await invoke("list_audio_output_devices");
+        const cameras: NativeVideoDevice[] = await invoke("list_video_input_devices");
+        setAudioInputs(inputs);
+        setAudioOutputs(outputs);
+        setVideoInputs(cameras);
+
+        // Auto-select defaults on first load
+        setSelectedAudioInput((prev) => {
+          if (prev) return prev;
+          const def = inputs.find((d) => d.is_default);
+          return def ? def.name : "";
+        });
+        setSelectedAudioOutput((prev) => {
+          if (prev) return prev;
+          const def = outputs.find((d) => d.is_default);
+          return def ? def.name : "";
+        });
+        setSelectedVideoInput((prev) => {
+          if (prev) return prev;
+          const def = cameras.find((d) => d.is_default);
+          return def ? def.unique_id : "";
+        });
+      } catch (e) {
+        console.warn("Device enumeration failed:", e);
       }
     };
     enumerate();
-    navigator.mediaDevices?.addEventListener("devicechange", enumerate);
+    // Re-enumerate every 3s to catch USB hotplug
+    const interval = setInterval(enumerate, 3000);
+
+    // Listen for audio device errors (e.g. USB unplug) to re-enumerate immediately
+    let unlistenFn: (() => void) | null = null;
+    listen("audio-device-error", (event) => {
+      console.warn("Audio device error:", event.payload);
+      enumerate();
+    }).then((fn_) => {
+      unlistenFn = fn_;
+    });
+
     return () => {
-      navigator.mediaDevices?.removeEventListener("devicechange", enumerate);
+      clearInterval(interval);
+      unlistenFn?.();
     };
   }, []);
 
@@ -2274,6 +2328,34 @@ export default function App() {
     }
   };
 
+  // ---- Device selection handlers ------------------------------------------
+  const handleSelectAudioInput = async (name: string) => {
+    setSelectedAudioInput(name);
+    try {
+      await invoke("select_audio_input", { deviceName: name });
+    } catch (e) {
+      console.error("Failed to select audio input:", e);
+    }
+  };
+
+  const handleSelectAudioOutput = async (name: string) => {
+    setSelectedAudioOutput(name);
+    try {
+      await invoke("select_audio_output", { deviceName: name });
+    } catch (e) {
+      console.error("Failed to select audio output:", e);
+    }
+  };
+
+  const handleSelectVideoInput = async (uniqueId: string) => {
+    setSelectedVideoInput(uniqueId);
+    try {
+      await invoke("select_video_input", { uniqueId });
+    } catch (e) {
+      console.error("Failed to select video input:", e);
+    }
+  };
+
   // ---- Render -------------------------------------------------------------
   return (
     <I18nContext.Provider value={t}>
@@ -2378,9 +2460,11 @@ export default function App() {
             audioOutputs={audioOutputs}
             videoInputs={videoInputs}
             selectedAudioInput={selectedAudioInput}
+            selectedAudioOutput={selectedAudioOutput}
             selectedVideoInput={selectedVideoInput}
-            onSelectAudioInput={setSelectedAudioInput}
-            onSelectVideoInput={setSelectedVideoInput}
+            onSelectAudioInput={handleSelectAudioInput}
+            onSelectAudioOutput={handleSelectAudioOutput}
+            onSelectVideoInput={handleSelectVideoInput}
             waitingParticipants={waitingParticipants}
             setWaitingParticipants={setWaitingParticipants}
             roomId={currentRoomId || undefined}
