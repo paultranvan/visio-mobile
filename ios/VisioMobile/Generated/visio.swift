@@ -1363,17 +1363,21 @@ public struct ParticipantInfo {
     public var isMuted: Bool
     public var hasVideo: Bool
     public var videoTrackSid: String?
+    public var hasScreenShare: Bool
+    public var screenShareTrackSid: String?
     public var connectionQuality: ConnectionQuality
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sid: String, identity: String, name: String?, isMuted: Bool, hasVideo: Bool, videoTrackSid: String?, connectionQuality: ConnectionQuality) {
+    public init(sid: String, identity: String, name: String?, isMuted: Bool, hasVideo: Bool, videoTrackSid: String?, hasScreenShare: Bool, screenShareTrackSid: String?, connectionQuality: ConnectionQuality) {
         self.sid = sid
         self.identity = identity
         self.name = name
         self.isMuted = isMuted
         self.hasVideo = hasVideo
         self.videoTrackSid = videoTrackSid
+        self.hasScreenShare = hasScreenShare
+        self.screenShareTrackSid = screenShareTrackSid
         self.connectionQuality = connectionQuality
     }
 }
@@ -1403,6 +1407,12 @@ extension ParticipantInfo: Equatable, Hashable {
         if lhs.videoTrackSid != rhs.videoTrackSid {
             return false
         }
+        if lhs.hasScreenShare != rhs.hasScreenShare {
+            return false
+        }
+        if lhs.screenShareTrackSid != rhs.screenShareTrackSid {
+            return false
+        }
         if lhs.connectionQuality != rhs.connectionQuality {
             return false
         }
@@ -1416,6 +1426,8 @@ extension ParticipantInfo: Equatable, Hashable {
         hasher.combine(isMuted)
         hasher.combine(hasVideo)
         hasher.combine(videoTrackSid)
+        hasher.combine(hasScreenShare)
+        hasher.combine(screenShareTrackSid)
         hasher.combine(connectionQuality)
     }
 }
@@ -1435,6 +1447,8 @@ public struct FfiConverterTypeParticipantInfo: FfiConverterRustBuffer {
                 isMuted: FfiConverterBool.read(from: &buf), 
                 hasVideo: FfiConverterBool.read(from: &buf), 
                 videoTrackSid: FfiConverterOptionString.read(from: &buf), 
+                hasScreenShare: FfiConverterBool.read(from: &buf), 
+                screenShareTrackSid: FfiConverterOptionString.read(from: &buf), 
                 connectionQuality: FfiConverterTypeConnectionQuality.read(from: &buf)
         )
     }
@@ -1446,6 +1460,8 @@ public struct FfiConverterTypeParticipantInfo: FfiConverterRustBuffer {
         FfiConverterBool.write(value.isMuted, into: &buf)
         FfiConverterBool.write(value.hasVideo, into: &buf)
         FfiConverterOptionString.write(value.videoTrackSid, into: &buf)
+        FfiConverterBool.write(value.hasScreenShare, into: &buf)
+        FfiConverterOptionString.write(value.screenShareTrackSid, into: &buf)
         FfiConverterTypeConnectionQuality.write(value.connectionQuality, into: &buf)
     }
 }

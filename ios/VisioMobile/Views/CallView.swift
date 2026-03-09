@@ -2,6 +2,57 @@ import SwiftUI
 import AVFoundation
 import visioFFI
 
+// MARK: - Display Item Types
+
+enum FocusSource: Equatable {
+    case camera
+    case screenShare
+}
+
+struct FocusItem: Equatable {
+    let participantSid: String
+    let source: FocusSource
+}
+
+struct DisplayItem: Identifiable, Equatable {
+    let id: String
+    let participant: ParticipantInfo
+    let source: FocusSource
+    let trackSid: String?
+    let isScreenShare: Bool
+
+    var label: String {
+        participant.name ?? participant.identity
+    }
+
+    static func == (lhs: DisplayItem, rhs: DisplayItem) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+func buildDisplayItems(_ participants: [ParticipantInfo]) -> [DisplayItem] {
+    var items: [DisplayItem] = []
+    for p in participants {
+        items.append(DisplayItem(
+            id: "\(p.sid)-camera",
+            participant: p,
+            source: .camera,
+            trackSid: p.videoTrackSid,
+            isScreenShare: false
+        ))
+        if p.hasScreenShare, let ssSid = p.screenShareTrackSid {
+            items.append(DisplayItem(
+                id: "\(p.sid)-screen",
+                participant: p,
+                source: .screenShare,
+                trackSid: ssSid,
+                isScreenShare: true
+            ))
+        }
+    }
+    return items
+}
+
 struct CallView: View {
     @EnvironmentObject private var manager: VisioManager
     @Environment(\.dismiss) private var dismiss
@@ -15,7 +66,7 @@ struct CallView: View {
     @State private var showInCallSettings: Bool = false
     @State private var inCallSettingsTab: Int = 0
     @State private var showParticipantList: Bool = false
-    @State private var focusedParticipant: String? = nil
+    @State private var focusedItem: FocusItem? = nil
     // lobbyNotificationDismissTask removed — banner is now persistent while participants wait
     @State private var showOverflow: Bool = false
     @State private var showReactionPicker: Bool = false
@@ -90,10 +141,13 @@ struct CallView: View {
                     } else if manager.adaptiveMode == .pedestrian {
                         // Pedestrian mode: single active speaker tile
                         pedestrianSingleTile
-                    } else if let focused = focusedParticipant,
-                              let focusedP = manager.participants.first(where: { $0.sid == focused }) {
-                        // Focus layout
-                        focusLayout(focused: focusedP)
+                    } else if let fi = focusedItem {
+                        let displayItems = buildDisplayItems(manager.participants)
+                        if let focusedDisplay = displayItems.first(where: { $0.participant.sid == fi.participantSid && $0.source == fi.source }) {
+                            focusLayout(focused: focusedDisplay, allItems: displayItems)
+                        } else {
+                            gridLayout
+                        }
                     } else {
                         // Grid layout
                         gridLayout
@@ -187,6 +241,23 @@ struct CallView: View {
                 dismiss()
             }
         }
+        .onChange(of: manager.lastScreenShareParticipantSid) { newSid in
+            if let sid = newSid {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    focusedItem = FocusItem(participantSid: sid, source: .screenShare)
+                }
+            }
+        }
+        .onChange(of: manager.participants) { newParticipants in
+            if let fi = focusedItem, fi.source == .screenShare {
+                let p = newParticipants.first(where: { $0.sid == fi.participantSid })
+                if p?.hasScreenShare != true {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        focusedItem = nil
+                    }
+                }
+            }
+        }
         // Lobby banner is now persistent — driven by waitingParticipants list
     }
 
@@ -211,7 +282,8 @@ struct CallView: View {
     // MARK: - Grid Layout
 
     private var gridLayout: some View {
-        let count = manager.participants.count
+        let displayItems = buildDisplayItems(manager.participants)
+        let count = displayItems.count
 
         return GeometryReader { geo in
             let isLandscape = geo.size.width > geo.size.height
@@ -227,18 +299,31 @@ struct CallView: View {
                 ForEach(Array(stride(from: 0, to: count, by: columnCount)), id: \.self) { rowStart in
                     HStack(spacing: 8) {
                         ForEach(rowStart..<min(rowStart + columnCount, count), id: \.self) { idx in
-                            let participant = manager.participants[idx]
-                            ParticipantTile(
-                                participant: participant,
-                                isActiveSpeaker: manager.activeSpeakers.contains(participant.sid),
-                                handRaisePosition: manager.handRaisedMap[participant.sid] ?? 0,
-                                isDark: isDark
-                            )
+                            let item = displayItems[idx]
+                            ZStack(alignment: .topLeading) {
+                                ParticipantTile(
+                                    participant: item.participant,
+                                    trackSidOverride: item.isScreenShare ? item.trackSid : nil,
+                                    isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
+                                    handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
+                                    isDark: isDark
+                                )
+
+                                if item.isScreenShare {
+                                    Image(systemName: "display")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(.white)
+                                        .padding(6)
+                                        .background(Color.black.opacity(0.6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        .padding(6)
+                                }
+                            }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    focusedParticipant = participant.sid
+                                    focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
                                 }
                             }
                         }
@@ -252,20 +337,77 @@ struct CallView: View {
 
     // MARK: - Focus Layout
 
-    private func focusLayout(focused: ParticipantInfo) -> some View {
-        ParticipantTile(
-            participant: focused,
-            large: true,
-            isActiveSpeaker: manager.activeSpeakers.contains(focused.sid),
-            handRaisePosition: manager.handRaisedMap[focused.sid] ?? 0,
-            isDark: isDark
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .padding(8)
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                focusedParticipant = nil
+    private func focusLayout(focused: DisplayItem, allItems: [DisplayItem]) -> some View {
+        VStack(spacing: 8) {
+            // Main focused view
+            ZStack(alignment: .topLeading) {
+                ParticipantTile(
+                    participant: focused.participant,
+                    trackSidOverride: focused.isScreenShare ? focused.trackSid : nil,
+                    large: true,
+                    isActiveSpeaker: manager.activeSpeakers.contains(focused.participant.sid),
+                    handRaisePosition: focused.isScreenShare ? 0 : manager.handRaisedMap[focused.participant.sid] ?? 0,
+                    isDark: isDark
+                )
+
+                if focused.isScreenShare {
+                    Image(systemName: "display")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .padding(8)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    focusedItem = nil
+                }
+            }
+
+            // Thumbnail bar
+            let others = allItems.filter { $0.id != focused.id }
+            if !others.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(others) { item in
+                            ZStack(alignment: .topLeading) {
+                                ParticipantTile(
+                                    participant: item.participant,
+                                    trackSidOverride: item.isScreenShare ? item.trackSid : nil,
+                                    isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
+                                    handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
+                                    isDark: isDark
+                                )
+
+                                if item.isScreenShare {
+                                    Image(systemName: "display")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(.white)
+                                        .padding(4)
+                                        .background(Color.black.opacity(0.6))
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                        .padding(4)
+                                }
+                            }
+                            .frame(width: 120, height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
+                .frame(height: 90)
+                .padding(.bottom, 4)
             }
         }
     }
@@ -735,15 +877,20 @@ struct CallView: View {
 
 struct ParticipantTile: View {
     let participant: ParticipantInfo
+    var trackSidOverride: String? = nil
     var large: Bool = false
     var isActiveSpeaker: Bool = false
     var handRaisePosition: Int = 0
     var isDark: Bool = true
 
+    private var effectiveTrackSid: String? {
+        trackSidOverride ?? participant.videoTrackSid
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Video or avatar fallback
-            if let trackSid = participant.videoTrackSid {
+            if let trackSid = effectiveTrackSid {
                 VideoLayerView(trackSid: trackSid)
             } else {
                 avatarView

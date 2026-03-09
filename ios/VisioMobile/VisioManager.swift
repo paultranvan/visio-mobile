@@ -43,6 +43,8 @@ class VisioManager: ObservableObject {
     @Published var backgroundMode: String = "off"
     @Published var reactions: [ReactionData] = []
     @Published var adaptiveMode: AdaptiveMode = .office
+    /// Set when a screen share track is subscribed; cleared on disconnect.
+    @Published var lastScreenShareParticipantSid: String? = nil
 
     let authManager = OidcAuthManager()
 
@@ -204,6 +206,7 @@ class VisioManager: ObservableObject {
                 self.lobbyNotification = nil
                 self.lobbyDenied = false
                 self.reactions = []
+                self.lastScreenShareParticipantSid = nil
             }
         }
     }
@@ -657,6 +660,9 @@ extension VisioManager: VisioEventListener {
                     }
                     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                         self?.client.startVideoRenderer(trackSid: sid)
+                    }
+                    if info.source == .screenShare {
+                        self.lastScreenShareParticipantSid = info.participantSid
                     }
                 }
 
