@@ -29,16 +29,13 @@ pub fn list_sources() -> Vec<ScreenSource> {
 
     if let Ok(monitors) = xcap::Monitor::all() {
         for (i, monitor) in monitors.iter().enumerate() {
-            let name = monitor
-                .name()
-                .unwrap_or_else(|_| format!("Display {}", i + 1));
             let width = monitor.width().unwrap_or(0);
             let height = monitor.height().unwrap_or(0);
             let is_primary = monitor.is_primary().unwrap_or(false);
             let label = if is_primary {
-                format!("{name} (primary)")
+                format!("Screen {} (primary)", i + 1)
             } else {
-                name
+                format!("Screen {}", i + 1)
             };
             sources.push(ScreenSource {
                 id: format!("monitor-{i}"),
@@ -52,25 +49,35 @@ pub fn list_sources() -> Vec<ScreenSource> {
 
     if let Ok(windows) = xcap::Window::all() {
         for window in &windows {
-            let title = match window.title() {
-                Ok(t) if !t.is_empty() => t,
-                _ => continue,
-            };
             if window.is_minimized().unwrap_or(false) {
                 continue;
             }
             let width = window.width().unwrap_or(0);
             let height = window.height().unwrap_or(0);
-            if width == 0 || height == 0 {
+            // Skip tiny windows (menu bar items, status icons, etc.)
+            if width < 100 || height < 100 {
                 continue;
             }
             let id = match window.id() {
                 Ok(id) => id,
                 Err(_) => continue,
             };
+            let app_name = window.app_name().unwrap_or_default();
+            let title = window.title().unwrap_or_default();
+            // Build a user-friendly label: "App — Title" or just "App"
+            let label = if title.is_empty() || title == app_name {
+                if app_name.is_empty() {
+                    continue;
+                }
+                app_name
+            } else if app_name.is_empty() {
+                title
+            } else {
+                format!("{app_name} — {title}")
+            };
             sources.push(ScreenSource {
                 id: format!("window-{id}"),
-                name: title,
+                name: label,
                 source_type: "window".into(),
                 width,
                 height,

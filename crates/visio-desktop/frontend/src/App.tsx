@@ -323,6 +323,11 @@ function ParticipantTile({
           src={`data:image/jpeg;base64,${videoSrc}`}
           alt=""
         />
+      ) : isScreenShare ? (
+        <div className="tile-screen-placeholder">
+          <ScreenShareIcon size={48} />
+          <span>{t("call.screenShare")}</span>
+        </div>
       ) : (
         <div
           className="tile-avatar"
@@ -1402,6 +1407,8 @@ function CallView({
       is_muted: !micEnabled,
       has_video: camEnabled,
       video_track_sid: camEnabled ? "local-camera" : null,
+      has_screen_share: isScreenSharing,
+      screen_share_track_sid: isScreenSharing ? "local-screen" : null,
     });
   }
   allParticipants.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));

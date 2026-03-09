@@ -712,11 +712,13 @@ async fn start_screen_share(
     state: tauri::State<'_, VisioState>,
     source_id: String,
 ) -> Result<(), String> {
+    tracing::info!("start_screen_share called with source_id={source_id}");
     let controls = state.controls.lock().await;
     let source = controls
         .publish_screen_share()
         .await
         .map_err(|e| e.to_string())?;
+    tracing::info!("screen share track published, starting capture");
 
     let capture = screen_capture::ScreenCapture::start(&source_id, source)
         .map_err(|e| format!("screen capture: {e}"))?;
