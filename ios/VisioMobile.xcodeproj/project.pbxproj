@@ -322,6 +322,11 @@
 					"-lvisio_ffi",
 					"-lvisio_video",
 					"-ObjC",
+					"-lc++",
+					"-framework",
+					VideoToolbox,
+					"-framework",
+					MetalKit,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.visio.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -351,6 +356,11 @@
 					"-lvisio_ffi",
 					"-lvisio_video",
 					"-ObjC",
+					"-lc++",
+					"-framework",
+					VideoToolbox,
+					"-framework",
+					MetalKit,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.visio.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
