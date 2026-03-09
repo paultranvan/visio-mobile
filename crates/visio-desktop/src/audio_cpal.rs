@@ -1,11 +1,20 @@
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use livekit::webrtc::audio_frame::AudioFrame;
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 use serde::Serialize;
+use tauri::{AppHandle, Emitter};
 use visio_core::{AudioCaptureBuffer, AudioPlayoutBuffer, CapturedFrame};
+
+static AUDIO_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+
+/// Set the AppHandle for audio error event emission.
+pub fn set_app_handle(handle: AppHandle) {
+    let _ = AUDIO_APP_HANDLE.set(handle);
+}
 
 #[derive(Serialize, Clone)]
 pub struct AudioDeviceInfo {
@@ -159,6 +168,9 @@ impl CpalAudioPlayout {
                 },
                 |err| {
                     tracing::error!("audio playout stream error: {err}");
+                    if let Some(app) = AUDIO_APP_HANDLE.get() {
+                        let _ = app.emit("audio-device-error", format!("{err}"));
+                    }
                 },
                 None,
             )
@@ -272,6 +284,9 @@ impl CpalAudioCapture {
                 },
                 |err| {
                     tracing::error!("audio capture stream error: {err}");
+                    if let Some(app) = AUDIO_APP_HANDLE.get() {
+                        let _ = app.emit("audio-device-error", format!("{err}"));
+                    }
                 },
                 None,
             )

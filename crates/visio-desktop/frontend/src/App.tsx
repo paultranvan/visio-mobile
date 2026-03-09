@@ -2046,7 +2046,20 @@ export default function App() {
     enumerate();
     // Re-enumerate every 3s to catch USB hotplug
     const interval = setInterval(enumerate, 3000);
-    return () => clearInterval(interval);
+
+    // Listen for audio device errors (e.g. USB unplug) to re-enumerate immediately
+    let unlistenFn: (() => void) | null = null;
+    listen("audio-device-error", (event) => {
+      console.warn("Audio device error:", event.payload);
+      enumerate();
+    }).then((fn_) => {
+      unlistenFn = fn_;
+    });
+
+    return () => {
+      clearInterval(interval);
+      unlistenFn?.();
+    };
   }, []);
 
   // ---- Click outside to close device pickers ------------------------------

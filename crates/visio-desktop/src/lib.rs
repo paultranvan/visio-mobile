@@ -1185,6 +1185,9 @@ pub fn run() {
             // Store handle globally for the C video callback
             let _ = APP_HANDLE.set(app.handle().clone());
 
+            // Store handle for audio error event emission
+            audio_cpal::set_app_handle(app.handle().clone());
+
             // Register the desktop video frame callback
             unsafe {
                 visio_video::visio_video_set_desktop_callback(
