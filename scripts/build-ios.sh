@@ -19,6 +19,10 @@ fi
 
 cargo build --target "$RUST_TARGET" -p visio-ffi -p visio-video --release
 
+# Remove dynamic libraries — iOS requires static linking and the linker
+# will prefer .dylib over .a when both exist, causing DYLD load errors.
+rm -f "target/$RUST_TARGET/release/"*.dylib
+
 echo "==> Libraries at:"
 ls -la "target/$RUST_TARGET/release/libvisio_ffi.a"
 ls -la "target/$RUST_TARGET/release/libvisio_video.a"
