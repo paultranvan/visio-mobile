@@ -132,25 +132,29 @@ private struct MessageBubble: View {
                     Text(message.senderName)
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                        .foregroundStyle(VisioColors.primary500)
                     Text(formattedTime)
                         .font(.caption2)
-                        .foregroundStyle(VisioColors.secondaryText(dark: isDark).opacity(0.7))
+                        .foregroundStyle(isOwn ? Color.white.opacity(0.6) : VisioColors.secondaryText(dark: isDark).opacity(0.7))
                     if !isOwn { Spacer() }
                 }
                 .padding(.top, 8)
             }
 
             HStack {
-                if isOwn { Spacer(minLength: 60) }
+                if isOwn { Spacer() }
                 Text(message.text)
                     .font(.body)
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(isOwn ? VisioColors.primary500 : VisioColors.surfaceVariant(dark: isDark))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                if !isOwn { Spacer(minLength: 60) }
+                    .clipShape(
+                        isOwn
+                            ? UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 16, bottomTrailingRadius: 4, topTrailingRadius: 16)
+                            : UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 4, bottomTrailingRadius: 16, topTrailingRadius: 16)
+                    )
+                if !isOwn { Spacer() }
             }
         }
         .frame(maxWidth: .infinity, alignment: isOwn ? .trailing : .leading)

@@ -21,6 +21,10 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.VideocamOff
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -622,6 +626,26 @@ fun CallScreen(
                                             fontSize = 14.sp,
                                         )
                                     }
+
+                                    // Close/exit focus button (top-right)
+                                    IconButton(
+                                        onClick = { focusedItem = null },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(8.dp)
+                                            .size(36.dp)
+                                            .background(
+                                                Color.Black.copy(alpha = 0.5f),
+                                                CircleShape,
+                                            ),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Close,
+                                            contentDescription = "Exit focus",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
                                 }
 
                                 // Thumbnail bar
@@ -703,6 +727,29 @@ fun CallScreen(
                                                             focusedItem = FocusItem(item.participant.sid, item.source)
                                                         },
                                                     )
+                                                    // Fullscreen icon overlay for screen share tiles
+                                                    if (item.isScreenShare) {
+                                                        IconButton(
+                                                            onClick = {
+                                                                focusedItem = FocusItem(item.participant.sid, item.source)
+                                                            },
+                                                            modifier = Modifier
+                                                                .align(Alignment.TopEnd)
+                                                                .padding(4.dp)
+                                                                .size(32.dp)
+                                                                .background(
+                                                                    Color.Black.copy(alpha = 0.5f),
+                                                                    CircleShape,
+                                                                ),
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Outlined.Fullscreen,
+                                                                contentDescription = "Fullscreen",
+                                                                tint = Color.White,
+                                                                modifier = Modifier.size(20.dp),
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -1431,22 +1478,28 @@ fun ParticipantTile(
             )
         } else {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF1A1A2E)),
                 contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(avatarColor),
-                    contentAlignment = Alignment.Center,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
+                    Icon(
+                        imageVector = Icons.Outlined.VideocamOff,
+                        contentDescription = null,
+                        tint = Color(0xFF666666),
+                        modifier = Modifier.size(32.dp),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = initials,
-                        color = VisioColors.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = name,
+                        color = Color(0xFF888888),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

@@ -300,7 +300,7 @@ struct CallView: View {
                     HStack(spacing: 8) {
                         ForEach(rowStart..<min(rowStart + columnCount, count), id: \.self) { idx in
                             let item = displayItems[idx]
-                            ZStack(alignment: .topLeading) {
+                            ZStack {
                                 ParticipantTile(
                                     participant: item.participant,
                                     trackSidOverride: item.isScreenShare ? item.trackSid : nil,
@@ -309,14 +309,44 @@ struct CallView: View {
                                     isDark: isDark
                                 )
 
+                                // Screen share badge (top-leading)
                                 if item.isScreenShare {
-                                    Image(systemName: "display")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.white)
-                                        .padding(6)
-                                        .background(Color.black.opacity(0.6))
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                                        .padding(6)
+                                    VStack {
+                                        HStack {
+                                            Image(systemName: "display")
+                                                .font(.system(size: 12, weight: .medium))
+                                                .foregroundStyle(.white)
+                                                .padding(6)
+                                                .background(Color.black.opacity(0.6))
+                                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                                .padding(6)
+                                            Spacer()
+                                        }
+                                        Spacer()
+                                    }
+                                }
+
+                                // Expand icon (top-trailing) for screen share tiles
+                                if item.isScreenShare {
+                                    VStack {
+                                        HStack {
+                                            Spacer()
+                                            Button {
+                                                withAnimation(.easeInOut(duration: 0.2)) {
+                                                    focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                                                }
+                                            } label: {
+                                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundStyle(.white)
+                                                    .frame(width: 28, height: 28)
+                                                    .background(Color.black.opacity(0.6))
+                                                    .clipShape(Circle())
+                                            }
+                                            .padding(6)
+                                        }
+                                        Spacer()
+                                    }
                                 }
                             }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -340,7 +370,7 @@ struct CallView: View {
     private func focusLayout(focused: DisplayItem, allItems: [DisplayItem]) -> some View {
         VStack(spacing: 8) {
             // Main focused view
-            ZStack(alignment: .topLeading) {
+            ZStack {
                 ParticipantTile(
                     participant: focused.participant,
                     trackSidOverride: focused.isScreenShare ? focused.trackSid : nil,
@@ -350,25 +380,48 @@ struct CallView: View {
                     isDark: isDark
                 )
 
+                // Screen share badge (top-leading)
                 if focused.isScreenShare {
-                    Image(systemName: "display")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
+                    VStack {
+                        HStack {
+                            Image(systemName: "display")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                                .padding(8)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .padding(8)
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                }
+
+                // Close / back-to-grid button (top-trailing)
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                focusedItem = nil
+                            }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 32, height: 32)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
                         .padding(8)
-                        .background(Color.black.opacity(0.6))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .padding(8)
+                    }
+                    Spacer()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.horizontal, 8)
             .padding(.top, 8)
-            .onTapGesture {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    focusedItem = nil
-                }
-            }
 
             // Thumbnail bar
             let others = allItems.filter { $0.id != focused.id }
@@ -909,17 +962,17 @@ struct ParticipantTile: View {
 
     private var avatarView: some View {
         ZStack {
-            VisioColors.background(dark: isDark)
+            Color(red: 0.1, green: 0.1, blue: 0.18)
 
-            Circle()
-                .fill(Color(hue: nameHue, saturation: 0.5, brightness: 0.35))
-                .frame(width: large ? 80 : 64, height: large ? 80 : 64)
-                .overlay(
-                    Text(initials)
-                        .font(large ? .title : .title2)
-                        .bold()
-                        .foregroundStyle(.white)
-                )
+            VStack(spacing: 8) {
+                Image(systemName: "video.slash")
+                    .font(.title)
+                    .foregroundStyle(Color.gray)
+                Text(participant.name ?? participant.identity)
+                    .font(.caption)
+                    .foregroundStyle(Color(white: 0.53))
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

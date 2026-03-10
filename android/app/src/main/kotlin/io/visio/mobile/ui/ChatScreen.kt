@@ -220,6 +220,12 @@ private fun ChatBubble(
             timeFormat.format(Date(message.timestampMs.toLong()))
         }
 
+    val bubbleShape = if (isOwn) {
+        RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
+    } else {
+        RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+    }
+
     Column(
         modifier =
             Modifier
@@ -244,7 +250,7 @@ private fun ChatBubble(
                 Text(
                     text = timestamp,
                     style = MaterialTheme.typography.labelSmall,
-                    color = VisioColors.Greyscale400,
+                    color = if (isOwn) Color.White.copy(alpha = 0.6f) else VisioColors.Greyscale400,
                 )
             }
             Spacer(modifier = Modifier.height(2.dp))
@@ -254,8 +260,8 @@ private fun ChatBubble(
         Box(
             modifier =
                 Modifier
-                    .widthIn(max = 280.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(0.75f)
+                    .clip(bubbleShape)
                     .background(
                         if (isOwn) VisioColors.Primary500 else VisioColors.PrimaryDark100,
                     )
@@ -264,7 +270,7 @@ private fun ChatBubble(
             Text(
                 text = message.text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = VisioColors.White,
+                color = Color.White,
                 fontSize = 14.sp,
             )
         }
