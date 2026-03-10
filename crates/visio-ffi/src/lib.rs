@@ -543,6 +543,38 @@ struct BridgeListener {
 
 impl visio_core::VisioEventListener for BridgeListener {
     fn on_event(&self, event: CoreVisioEvent) {
+        // Check for pending surfaces when a video track is subscribed (Android only).
+        #[cfg(target_os = "android")]
+        if let CoreVisioEvent::TrackSubscribed(ref info) = event {
+            if info.kind == visio_core::events::TrackKind::Video {
+                if let Some(surface_ptr) = pending::take(&info.sid) {
+                    visio_log(&format!(
+                        "VISIO JNI: attaching pending surface for track {}",
+                        info.sid
+                    ));
+                    let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
+                    if client_addr != 0 {
+                        let client = unsafe { &*(client_addr as *const VisioClient) };
+                        let track = client
+                            .rt
+                            .block_on(client.room_manager.get_video_track(&info.sid));
+                        if let Some(video_track) = track {
+                            visio_video::start_track_renderer(
+                                info.sid.clone(),
+                                video_track,
+                                surface_ptr,
+                                Some(client.rt.handle().clone()),
+                            );
+                            visio_log(&format!(
+                                "VISIO JNI: pending surface attached for track {}",
+                                info.sid
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
         self.ffi_listener.on_event(event.into());
     }
 }
@@ -1230,6 +1262,35 @@ static LOCAL_PREVIEW_SURFACE: StdMutex<Option<NativeWindowHandle>> = StdMutex::n
 #[cfg(target_os = "android")]
 static AUDIO_SOURCE: StdMutex<Option<NativeAudioSource>> = StdMutex::new(None);
 
+/// Pending surfaces: track SID → native surface pointer.
+/// When attachSurface is called before the track is in the registry,
+/// the surface is stored here and attached when TrackSubscribed arrives.
+#[cfg(target_os = "android")]
+mod pending {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    struct RawSurface(*mut std::ffi::c_void);
+    unsafe impl Send for RawSurface {}
+
+    static SURFACES: std::sync::LazyLock<Mutex<HashMap<String, RawSurface>>> =
+        std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+    pub fn store(track_sid: String, surface: *mut std::ffi::c_void) {
+        if let Ok(mut map) = SURFACES.lock() {
+            map.insert(track_sid, RawSurface(surface));
+        }
+    }
+
+    pub fn take(track_sid: &str) -> Option<*mut std::ffi::c_void> {
+        if let Ok(mut map) = SURFACES.lock() {
+            map.remove(track_sid).map(|rs| rs.0)
+        } else {
+            None
+        }
+    }
+}
+
 /// Dedicated tokio runtime for async audio capture_frame calls.
 #[cfg(target_os = "android")]
 static AUDIO_RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
@@ -1785,8 +1846,8 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
             visio_log(&format!("VISIO JNI: start_track_renderer returned for {track_sid}"));
         }
         None => {
-            visio_log(&format!("VISIO JNI: no video track found for {track_sid}"));
-            // window_handle is dropped here → ANativeWindow_release called automatically
+            visio_log(&format!("VISIO JNI: track {track_sid} not in registry yet, storing as pending surface"));
+            pending::store(track_sid, window_handle.into_raw() as *mut std::ffi::c_void);
         }
     }
 }
