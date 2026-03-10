@@ -626,6 +626,23 @@ main {
   width: 100%;
   height: 100%;
 }
+
+.tile-avatar-no-cam {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  color: #666;
+}
+
+.tile-initials-small {
+  font-size: 0.85rem;
+  color: #888;
+}
 .tile-screen-placeholder {
   display: flex;
   flex-direction: column;
@@ -906,6 +923,7 @@ main {
   padding: 12px 16px;
   display: flex;
   flex-direction: column;
+  gap: 6px;
   gap: 4px;
 }
 
@@ -920,21 +938,28 @@ main {
 
 .chat-bubble {
   padding: 8px 12px;
-  border-radius: 12px;
-  max-width: 85%;
+  border-radius: 16px 16px 16px 4px;
+  max-width: 75%;
   background: var(--bg-tertiary);
   word-break: break-word;
 }
 
 .chat-bubble-own {
   background: var(--accent);
+  color: #fff;
   align-self: flex-end;
   margin-left: auto;
+  border-radius: 16px 16px 4px 16px;
+}
+
+.chat-bubble-own .chat-time {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .chat-sender {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
   margin-bottom: 2px;
 }
 
@@ -944,9 +969,9 @@ main {
 }
 
 .chat-time {
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   color: var(--text-tertiary);
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .chat-input-bar {

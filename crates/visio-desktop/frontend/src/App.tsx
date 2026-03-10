@@ -333,11 +333,9 @@ function ParticipantTile({
           <span>{t("call.screenShare")}</span>
         </div>
       ) : (
-        <div
-          className="tile-avatar"
-          style={{ background: `hsl(${hue}, 50%, 35%)` }}
-        >
-          <span className="tile-initials">{initials}</span>
+        <div className="tile-avatar-no-cam">
+          <RiVideoOffLine size={32} />
+          <span className="tile-initials-small">{displayName}</span>
         </div>
       )}
       {isScreenShare && onExpand && (
