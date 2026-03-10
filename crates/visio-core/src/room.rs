@@ -978,8 +978,9 @@ impl RoomManager {
                         let handle = tokio::spawn(async move {
                             tracing::info!("audio playout stream started for track {sid}");
                             while let Some(frame) = audio_stream.next().await {
-                                buf.push_samples(&frame.data);
+                                buf.push_samples_for_track(&sid, &frame.data);
                             }
+                            buf.remove_track(&sid);
                             tracing::info!("audio playout stream ended for track {sid}");
                         });
                         audio_stream_tasks.insert(track_sid.clone(), handle);
