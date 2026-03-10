@@ -28,7 +28,7 @@ class AudioPlayout {
     private var playThread: Thread? = null
     private var audioTrack: AudioTrack? = null
 
-    fun start() {
+    fun start(device: AudioDeviceInfo? = null) {
         if (running) return
         running = true
 
@@ -61,6 +61,11 @@ class AudioPlayout {
                 .build()
 
         audioTrack = track
+        // Set preferred device BEFORE play() so routing is applied from the start
+        if (device != null) {
+            track.setPreferredDevice(device)
+            Log.i(TAG, "Audio playout preferred device set before play: ${device.productName}")
+        }
         track.play()
         Log.i(TAG, "Audio playout started: ${SAMPLE_RATE}Hz mono, ${FRAME_SIZE_MS}ms frames")
 

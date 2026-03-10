@@ -316,7 +316,15 @@ object VisioManager : VisioEventListener {
      */
     fun startAudioCapture() {
         if (audioCapture != null) return
-        audioCapture = AudioCapture().also { it.start() }
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val btInput = am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        if (btInput != null) {
+            Log.i("VisioManager", "Bluetooth input detected at startup: ${btInput.productName}")
+        }
+        audioCapture = AudioCapture().also { it.start(btInput) }
     }
 
     /**
@@ -342,7 +350,16 @@ object VisioManager : VisioEventListener {
             pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VisioMobile::AudioPlayout").apply {
                 acquire(4 * 60 * 60 * 1000L) // 4-hour timeout as safety net
             }
-        audioPlayout = AudioPlayout().also { it.start() }
+        // Detect Bluetooth output device at startup
+        val btOutput = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull { device ->
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+        if (btOutput != null) {
+            Log.i("VisioManager", "Bluetooth output detected at startup: ${btOutput.productName}")
+        }
+        audioPlayout = AudioPlayout().also { it.start(btOutput) }
     }
 
     /**
@@ -383,7 +400,9 @@ object VisioManager : VisioEventListener {
      * Route audio input to a specific device.
      */
     fun setAudioInputDevice(device: AudioDeviceInfo) {
-        audioCapture?.setPreferredDevice(device)
+        // Restart AudioRecord with new device to ensure routing takes effect
+        audioCapture?.stop()
+        audioCapture = AudioCapture().also { it.start(device) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)
@@ -394,7 +413,9 @@ object VisioManager : VisioEventListener {
      * Route audio output to a specific device.
      */
     fun setAudioOutputDevice(device: AudioDeviceInfo) {
-        audioPlayout?.setPreferredDevice(device)
+        // Restart AudioTrack with new device to ensure routing takes effect
+        audioPlayout?.stop()
+        audioPlayout = AudioPlayout().also { it.start(device) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)

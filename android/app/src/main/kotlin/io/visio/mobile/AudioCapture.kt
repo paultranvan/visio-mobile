@@ -32,7 +32,7 @@ class AudioCapture {
     private var recorder: AudioRecord? = null
 
     @SuppressLint("MissingPermission") // Caller must check RECORD_AUDIO permission
-    fun start() {
+    fun start(device: AudioDeviceInfo? = null) {
         synchronized(lock) {
             if (running) return
             running = true
@@ -64,6 +64,11 @@ class AudioCapture {
             }
 
             recorder = rec
+            // Set preferred device BEFORE startRecording()
+            if (device != null) {
+                rec.setPreferredDevice(device)
+                Log.i(TAG, "Audio capture preferred device set before recording: ${device.productName}")
+            }
             rec.startRecording()
         }
 
