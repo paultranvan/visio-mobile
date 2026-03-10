@@ -218,10 +218,7 @@ async fn frame_loop(
                             if frame_count == 1 {
                                 tracing::info!(track_sid = %track_sid, width = frame.buffer.width(), height = frame.buffer.height(), "first video frame received");
                             }
-                            // Throttle: render every 3rd frame (~10 fps at 30 fps input).
-                            if frame_count % 3 == 0 {
-                                desktop::render_frame(&frame, surface.0, &track_sid);
-                            }
+                            desktop::render_frame(&frame, surface.0, &track_sid);
                         }
                     }
                     None => {
