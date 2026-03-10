@@ -544,6 +544,7 @@ struct BridgeListener {
 impl visio_core::VisioEventListener for BridgeListener {
     fn on_event(&self, event: CoreVisioEvent) {
         // Check for pending surfaces when a video track is subscribed (Android only).
+        // Spawn on the runtime to avoid block_on inside a tokio context.
         #[cfg(target_os = "android")]
         if let CoreVisioEvent::TrackSubscribed(ref info) = event {
             if info.kind == visio_core::events::TrackKind::Video {
@@ -555,21 +556,25 @@ impl visio_core::VisioEventListener for BridgeListener {
                     let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
                     if client_addr != 0 {
                         let client = unsafe { &*(client_addr as *const VisioClient) };
-                        let track = client
-                            .rt
-                            .block_on(client.room_manager.get_video_track(&info.sid));
-                        if let Some(video_track) = track {
-                            visio_video::start_track_renderer(
-                                info.sid.clone(),
-                                video_track,
-                                surface_ptr,
-                                Some(client.rt.handle().clone()),
-                            );
-                            visio_log(&format!(
-                                "VISIO JNI: pending surface attached for track {}",
-                                info.sid
-                            ));
-                        }
+                        let sid = info.sid.clone();
+                        let rt_handle = client.rt.handle().clone();
+                        // SAFETY: client_addr is valid while connected (cleared on disconnect).
+                        let client_ptr = client_addr as *const VisioClient;
+                        rt_handle.spawn(async move {
+                            let client = unsafe { &*client_ptr };
+                            let track = client.room_manager.get_video_track(&sid).await;
+                            if let Some(video_track) = track {
+                                visio_video::start_track_renderer(
+                                    sid.clone(),
+                                    video_track,
+                                    surface_ptr,
+                                    Some(client.rt.handle().clone()),
+                                );
+                                visio_log(&format!(
+                                    "VISIO JNI: pending surface attached for track {sid}"
+                                ));
+                            }
+                        });
                     }
                 }
             }
@@ -688,6 +693,8 @@ impl VisioClient {
             // Release the local preview surface (detachSurface is a no-op for
             // local-camera to avoid a recomposition race, so we clean up here).
             LOCAL_PREVIEW_SURFACE.lock().unwrap().take();
+            // Drain pending surfaces to release any ANativeWindow that was never attached.
+            pending::drain();
         }
         self.rt.block_on(self.room_manager.disconnect());
     }
@@ -1287,6 +1294,16 @@ mod pending {
             map.remove(track_sid).map(|rs| rs.0)
         } else {
             None
+        }
+    }
+
+    /// Drain all pending surfaces, releasing the underlying ANativeWindows.
+    /// Call on disconnect to avoid leaking native resources.
+    pub fn drain() {
+        if let Ok(mut map) = SURFACES.lock() {
+            for (_sid, rs) in map.drain() {
+                unsafe { ndk_sys::ANativeWindow_release(rs.0 as *mut _) };
+            }
         }
     }
 }
