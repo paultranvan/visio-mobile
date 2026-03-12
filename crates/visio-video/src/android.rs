@@ -153,17 +153,20 @@ pub fn render_i420_to_surface(
 /// # Safety contract (upheld by caller)
 /// `surface` must be a valid, non-null `ANativeWindow*` that remains alive for
 /// the duration of this call.  The frame loop in `lib.rs` guarantees this.
+/// Render a single I420 frame to an ANativeWindow surface.
+/// Returns `false` if the surface is invalid (destroyed/released),
+/// signalling the caller to stop the frame loop.
 pub(crate) fn render_frame(
     frame: &BoxVideoFrame,
     surface: *mut c_void,
     _track_sid: &str,
-) {
+) -> bool {
     let buffer = &frame.buffer;
     let width = buffer.width() as usize;
     let height = buffer.height() as usize;
 
     if width == 0 || height == 0 {
-        return;
+        return true; // Not a surface error, just skip this frame.
     }
 
     // Convert native buffer to I420 (may be a no-op if already I420).
@@ -181,7 +184,8 @@ pub(crate) fn render_frame(
         let surf_w = ndk_sys::ANativeWindow_getWidth(window) as usize;
         let surf_h = ndk_sys::ANativeWindow_getHeight(window) as usize;
         if surf_w == 0 || surf_h == 0 {
-            return;
+            // Surface was likely destroyed — signal caller to stop.
+            return false;
         }
 
         let result = ndk_sys::ANativeWindow_setBuffersGeometry(
@@ -192,7 +196,7 @@ pub(crate) fn render_frame(
         );
         if result != 0 {
             tracing::warn!("ANativeWindow_setBuffersGeometry failed: {result}");
-            return;
+            return false;
         }
 
         // Lock the surface buffer for writing.
@@ -204,7 +208,7 @@ pub(crate) fn render_frame(
         );
         if lock_result != 0 {
             tracing::warn!("ANativeWindow_lock failed: {lock_result}");
-            return;
+            return false;
         }
 
         let native_buf = native_buf.assume_init();
@@ -214,7 +218,7 @@ pub(crate) fn render_frame(
         // Validate stride — must be at least surface width for safe pixel writes.
         if dst_stride < surf_w {
             ndk_sys::ANativeWindow_unlockAndPost(window);
-            return;
+            return true; // Odd but not a fatal surface error.
         }
 
         // Clear to opaque black.
@@ -264,4 +268,5 @@ pub(crate) fn render_frame(
 
         ndk_sys::ANativeWindow_unlockAndPost(window);
     }
+    true
 }

@@ -202,7 +202,10 @@ async fn frame_loop(
                             if android_frame_count == 1 || android_frame_count % 100 == 0 {
                                 android_log(&format!("VISIO VIDEO: frame #{android_frame_count} track={track_sid} {}x{}", frame.buffer.width(), frame.buffer.height()));
                             }
-                            android::render_frame(&frame, surface.0, &track_sid);
+                            if !android::render_frame(&frame, surface.0, &track_sid) {
+                                android_log(&format!("VISIO VIDEO: surface invalid, stopping frame_loop track={track_sid}"));
+                                break;
+                            }
                         }
 
                         // --- iOS ---
@@ -218,7 +221,11 @@ async fn frame_loop(
                             if frame_count == 1 {
                                 tracing::info!(track_sid = %track_sid, width = frame.buffer.width(), height = frame.buffer.height(), "first video frame received");
                             }
-                            desktop::render_frame(&frame, surface.0, &track_sid);
+                            // Throttle: render every 3rd frame (~10fps at 30fps input)
+                            // to avoid memory explosion from JPEG+base64 encoding.
+                            if frame_count % 3 == 0 {
+                                desktop::render_frame(&frame, surface.0, &track_sid);
+                            }
                         }
                     }
                     None => {

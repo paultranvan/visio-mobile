@@ -467,7 +467,7 @@ function HomeView({
   }, [meetUrl]);
 
   const handleJoin = async () => {
-    const url = resolvedUrl || resolveUrl(meetUrl);
+    const url = resolvedUrl;
     if (!url) {
       setError(t("home.error.noUrl"));
       return;
@@ -2394,19 +2394,38 @@ export default function App() {
 
     let unlisten: UnlistenFn | null = null;
 
-    listen<VideoFrame>("video-frame", (event) => {
-      const { track_sid, data } = event.payload;
+    // Backpressure: batch frame updates via requestAnimationFrame to avoid
+    // accumulating state updates faster than the browser can render.
+    let pendingFrames: Map<string, string> = new Map();
+    let rafId: number | null = null;
+
+    const flushFrames = () => {
+      rafId = null;
+      if (pendingFrames.size === 0) return;
+      const batch = pendingFrames;
+      pendingFrames = new Map();
       setVideoFrames((prev) => {
         const next = new Map(prev);
-        next.set(track_sid, data);
+        for (const [sid, d] of batch) {
+          next.set(sid, d);
+        }
         return next;
       });
+    };
+
+    listen<VideoFrame>("video-frame", (event) => {
+      const { track_sid, data } = event.payload;
+      pendingFrames.set(track_sid, data);
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushFrames);
+      }
     }).then((fn) => {
       unlisten = fn;
     });
 
     return () => {
       if (unlisten) unlisten();
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [view]);
 

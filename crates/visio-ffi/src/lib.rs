@@ -537,12 +537,42 @@ pub trait VisioEventListener: Send + Sync {
 
 // ── Bridge listener: FFI callback → core listener ─────────────────────
 
+/// Send-safe wrapper for raw VisioClient pointer (used in async spawn on Android).
+#[cfg(target_os = "android")]
+struct SendClientPtr(usize);
+#[cfg(target_os = "android")]
+unsafe impl Send for SendClientPtr {}
+#[cfg(target_os = "android")]
+impl SendClientPtr {
+    fn as_client(&self) -> &VisioClient {
+        unsafe { &*(self.0 as *const VisioClient) }
+    }
+}
+
+/// Send-safe wrapper for raw surface pointer (used in async spawn on Android).
+#[cfg(target_os = "android")]
+struct SendSurfacePtr(usize);
+#[cfg(target_os = "android")]
+unsafe impl Send for SendSurfacePtr {}
+#[cfg(target_os = "android")]
+impl SendSurfacePtr {
+    fn as_ptr(&self) -> *mut std::ffi::c_void {
+        self.0 as *mut std::ffi::c_void
+    }
+}
+
 struct BridgeListener {
     ffi_listener: Arc<dyn VisioEventListener>,
 }
 
 impl visio_core::VisioEventListener for BridgeListener {
     fn on_event(&self, event: CoreVisioEvent) {
+        // Clean up pending surfaces when a track is unsubscribed (Android only).
+        #[cfg(target_os = "android")]
+        if let CoreVisioEvent::TrackUnsubscribed(ref track_sid) = event {
+            pending::remove(track_sid);
+        }
+
         // Check for pending surfaces when a video track is subscribed (Android only).
         // Spawn on the runtime to avoid block_on inside a tokio context.
         #[cfg(target_os = "android")]
@@ -558,16 +588,18 @@ impl visio_core::VisioEventListener for BridgeListener {
                         let client = unsafe { &*(client_addr as *const VisioClient) };
                         let sid = info.sid.clone();
                         let rt_handle = client.rt.handle().clone();
-                        // SAFETY: client_addr is valid while connected (cleared on disconnect).
-                        let client_ptr = client_addr as *const VisioClient;
+                        // Wrap raw pointers in Send-able newtypes for the async block.
+                        let send_client = SendClientPtr(client_addr);
+                        let send_surface = SendSurfacePtr(surface_ptr as usize);
                         rt_handle.spawn(async move {
-                            let client = unsafe { &*client_ptr };
+                            // SAFETY: client_addr is valid while connected (cleared on disconnect).
+                            let client = send_client.as_client();
                             let track = client.room_manager.get_video_track(&sid).await;
                             if let Some(video_track) = track {
                                 visio_video::start_track_renderer(
                                     sid.clone(),
                                     video_track,
-                                    surface_ptr,
+                                    send_surface.as_ptr(),
                                     Some(client.rt.handle().clone()),
                                 );
                                 visio_log(&format!(
@@ -1297,6 +1329,16 @@ mod pending {
         }
     }
 
+    /// Remove a specific pending surface, releasing its ANativeWindow.
+    /// Call when a track is unsubscribed or detached before it was claimed.
+    pub fn remove(track_sid: &str) {
+        if let Ok(mut map) = SURFACES.lock() {
+            if let Some(rs) = map.remove(track_sid) {
+                unsafe { ndk_sys::ANativeWindow_release(rs.0 as *mut _) };
+            }
+        }
+    }
+
     /// Drain all pending surfaces, releasing the underlying ANativeWindows.
     /// Call on disconnect to avoid leaking native resources.
     pub fn drain() {
@@ -1903,6 +1945,8 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_detachSurface(
         return;
     }
 
+    // Clean up any pending surface that was never claimed by TrackSubscribed.
+    pending::remove(&track_sid);
     visio_video::stop_track_renderer(&track_sid);
 }
 
