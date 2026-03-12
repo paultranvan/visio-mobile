@@ -814,6 +814,9 @@ object VisioManager : VisioEventListener {
                     }
                 }
             }
+            is VisioEvent.BandwidthModeChanged -> {
+                Log.d("VISIO", "Bandwidth mode changed: ${event.mode}")
+            }
             is VisioEvent.AdaptiveModeChanged -> {
                 val previousMode = _adaptiveMode.value
                 _adaptiveMode.value = event.mode
