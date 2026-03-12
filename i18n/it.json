@@ -182,5 +182,6 @@
   "call.monitors": "Schermi",
   "call.windows": "Finestre",
   "bandwidth.reducedVideo": "Banda bassa — video ridotto",
-  "bandwidth.audioOnly": "Banda molto bassa — solo audio"
+  "bandwidth.audioOnly": "Banda molto bassa — solo audio",
+  "home.recentRooms": "Stanze recenti"
 }

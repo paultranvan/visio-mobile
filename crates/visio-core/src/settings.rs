@@ -27,6 +27,8 @@ pub struct Settings {
     pub background_mode: String,
     #[serde(default = "default_true")]
     pub adaptive_mode_enabled: bool,
+    #[serde(default)]
+    pub room_history: Vec<String>,
 }
 
 fn default_meet_instances() -> Vec<String> {
@@ -62,6 +64,7 @@ impl Default for Settings {
             notification_message_received: true,
             background_mode: "off".to_string(),
             adaptive_mode_enabled: true,
+            room_history: Vec::new(),
         }
     }
 }
@@ -196,6 +199,32 @@ impl SettingsStore {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .adaptive_mode_enabled = enabled;
+        self.save();
+    }
+
+    pub fn add_room_to_history(&self, url: String) {
+        let mut s = self.settings.lock().unwrap_or_else(|e| e.into_inner());
+        s.room_history.retain(|u| u != &url);
+        s.room_history.insert(0, url);
+        s.room_history.truncate(10);
+        drop(s);
+        self.save();
+    }
+
+    pub fn get_room_history(&self) -> Vec<String> {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .room_history
+            .clone()
+    }
+
+    pub fn clear_room_history(&self) {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .room_history
+            .clear();
         self.save();
     }
 
@@ -439,6 +468,52 @@ mod tests {
         }
         let store = SettingsStore::new(path);
         assert!(!store.is_adaptive_mode_enabled());
+    }
+
+    #[test]
+    fn test_room_history() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+
+        store.add_room_to_history("https://meet.example.com/room1".to_string());
+        store.add_room_to_history("https://meet.example.com/room2".to_string());
+        store.add_room_to_history("https://meet.example.com/room1".to_string()); // dedup, moves to front
+
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0], "https://meet.example.com/room1");
+        assert_eq!(history[1], "https://meet.example.com/room2");
+
+        store.clear_room_history();
+        assert!(store.get_room_history().is_empty());
+    }
+
+    #[test]
+    fn test_room_history_max_10() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+
+        for i in 0..15 {
+            store.add_room_to_history(format!("https://meet.example.com/room{i}"));
+        }
+
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 10);
+        assert_eq!(history[0], "https://meet.example.com/room14");
+    }
+
+    #[test]
+    fn test_room_history_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.add_room_to_history("https://meet.example.com/room1".to_string());
+        }
+        let store = SettingsStore::new(path);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0], "https://meet.example.com/room1");
     }
 
     #[test]

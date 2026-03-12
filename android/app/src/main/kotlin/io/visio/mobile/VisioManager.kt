@@ -128,6 +128,10 @@ object VisioManager : VisioEventListener {
     // Track previous audio device to restore after car mode
     private var previousAudioDevice: AudioDeviceInfo? = null
 
+    // Audio focus monitoring for phone call detection
+    private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
+    private var wasPlayingBeforeFocusLoss = false
+
     // Deep link: pre-fill room URL on HomeScreen
     var pendingDeepLink: String? by mutableStateOf(null)
 
@@ -501,6 +505,74 @@ object VisioManager : VisioEventListener {
     }
 
     /**
+     * Start monitoring audio focus changes to detect phone calls.
+     * When a phone call starts, Android requests audio focus and we lose ours.
+     */
+    private fun startAudioFocusMonitoring() {
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    Log.i("VisioManager", "Audio focus lost (phone call?) — pausing audio")
+                    wasPlayingBeforeFocusLoss = audioPlayout != null
+                    stopAudioPlayout()
+                    stopAudioCapture()
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    Log.i("VisioManager", "Audio focus regained — resuming audio")
+                    if (wasPlayingBeforeFocusLoss && connectionState.value is ConnectionState.Connected) {
+                        scope.launch(Dispatchers.IO) {
+                            startAudioPlayout()
+                            if (client.isMicrophoneEnabled()) {
+                                startAudioCapture()
+                            }
+                        }
+                    }
+                    wasPlayingBeforeFocusLoss = false
+                }
+            }
+        }
+
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusListener!!)
+                .build()
+            am.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(audioFocusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
+        }
+        Log.i("VisioManager", "Audio focus requested: result=$result")
+    }
+
+    /**
+     * Stop monitoring audio focus changes. Call when disconnecting.
+     */
+    private fun stopAudioFocusMonitoring() {
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioFocusListener?.let { listener ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val request = android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setOnAudioFocusChangeListener(listener)
+                    .build()
+                am.abandonAudioFocusRequest(request)
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(listener)
+            }
+        }
+        audioFocusListener = null
+        wasPlayingBeforeFocusLoss = false
+    }
+
+    /**
      * Called by ContextDetector when a Bluetooth audio device connects.
      * Auto-routes audio if we're in an active call.
      */
@@ -633,6 +705,7 @@ object VisioManager : VisioEventListener {
      * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
      */
     fun disconnect() {
+        stopAudioFocusMonitoring()
         contextDetector?.stop()
         contextDetector = null
         stopCameraCapture()
@@ -711,6 +784,7 @@ object VisioManager : VisioEventListener {
                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                             startContextDetection()
                         }
+                        startAudioFocusMonitoring()
                     }
                     is ConnectionState.Disconnected -> {
                         _handRaisedMap.value = emptyMap()
@@ -835,7 +909,15 @@ object VisioManager : VisioEventListener {
                             stopCameraCapture()
                             client.setCameraEnabled(false)
                         }
+                        // Small delay to let audio session settle after camera state change
+                        kotlinx.coroutines.delay(200)
                         routeAudioToBluetooth()
+                        // Verify Bluetooth routing was applied
+                        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val commDevice = am.communicationDevice
+                            Log.i("VisioManager", "CAR mode: communication device after routing = ${commDevice?.productName ?: "none"}")
+                        }
                     }
                 } else if (previousMode == uniffi.visio.AdaptiveMode.CAR) {
                     scope.launch(Dispatchers.IO) {

@@ -699,6 +699,8 @@ impl VisioClient {
                     *CLIENT_FOR_VIDEO.lock().unwrap() = self as *const VisioClient as usize;
                 }
 
+                self.settings.add_room_to_history(meet_url.clone());
+
                 Ok(())
             }
             Ok(Err(e)) => Err(e),
@@ -904,6 +906,18 @@ impl VisioClient {
 
     pub fn set_adaptive_mode_enabled(&self, enabled: bool) {
         self.settings.set_adaptive_mode_enabled(enabled);
+    }
+
+    pub fn add_room_to_history(&self, url: String) {
+        self.settings.add_room_to_history(url);
+    }
+
+    pub fn get_room_history(&self) -> Vec<String> {
+        self.settings.get_room_history()
+    }
+
+    pub fn clear_room_history(&self) {
+        self.settings.clear_room_history();
     }
 
     pub fn raise_hand(&self) -> Result<(), VisioError> {

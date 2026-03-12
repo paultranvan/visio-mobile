@@ -182,5 +182,6 @@
   "call.monitors": "Schermen",
   "call.windows": "Vensters",
   "bandwidth.reducedVideo": "Lage bandbreedte — verminderde video",
-  "bandwidth.audioOnly": "Zeer lage bandbreedte — alleen audio"
+  "bandwidth.audioOnly": "Zeer lage bandbreedte — alleen audio",
+  "home.recentRooms": "Recente kamers"
 }

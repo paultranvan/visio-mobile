@@ -182,5 +182,6 @@
   "call.monitors": "Écrans",
   "call.windows": "Fenêtres",
   "bandwidth.reducedVideo": "Faible débit — vidéo réduite",
-  "bandwidth.audioOnly": "Très faible débit — audio uniquement"
+  "bandwidth.audioOnly": "Très faible débit — audio uniquement",
+  "home.recentRooms": "Salles récentes"
 }

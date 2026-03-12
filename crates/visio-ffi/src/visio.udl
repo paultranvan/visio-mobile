@@ -296,6 +296,12 @@ interface VisioClient {
 
     void stop_video_renderer(string track_sid);
 
+    void add_room_to_history(string url);
+
+    sequence<string> get_room_history();
+
+    void clear_room_history();
+
     void set_background_mode(string mode);
 
     string get_background_mode();

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import io.visio.mobile.ui.i18n.Strings
 
@@ -32,7 +33,28 @@ class CallForegroundService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-        return START_STICKY
+        return START_NOT_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.i("CallForegroundService", "Task removed — disconnecting and stopping service")
+        // Full cleanup: stop audio, camera, disconnect from room
+        VisioManager.disconnect()
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("CallForegroundService", "Service destroyed — ensuring cleanup")
+        // Safety net: if disconnect wasn't called yet
+        try {
+            VisioManager.stopAudioPlayout()
+            VisioManager.stopAudioCapture()
+            VisioManager.stopCameraCapture()
+        } catch (e: Exception) {
+            Log.e("CallForegroundService", "Cleanup error", e)
+        }
     }
 
     private fun createNotificationChannel() {

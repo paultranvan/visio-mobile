@@ -98,6 +98,7 @@ fun HomeScreen(
     var roomUrl by remember { mutableStateOf("") }
     var resolvedRoomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
+    var roomHistory by remember { mutableStateOf(listOf<String>()) }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
     var roomStatus by remember { mutableStateOf("idle") }
@@ -106,6 +107,14 @@ fun HomeScreen(
     var showServerPicker by remember { mutableStateOf(false) }
     var showCreateRoom by remember { mutableStateOf(false) }
     var customServer by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        try {
+            roomHistory = VisioManager.client.getRoomHistory()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load room history", e)
+        }
+    }
 
     LaunchedEffect(VisioManager.pendingDeepLink) {
         val link = VisioManager.pendingDeepLink
@@ -423,6 +432,61 @@ fun HomeScreen(
                     fontSize = 16.sp,
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
+            }
+        }
+
+        // Room history
+        if (roomHistory.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = Strings.t("home.recentRooms", lang),
+                style = MaterialTheme.typography.titleSmall,
+                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            roomHistory.forEach { url ->
+                val slug = if ('/' in url) url.substringAfterLast('/') else url
+                val host = try {
+                    java.net.URI(url).host ?: ""
+                } catch (_: Exception) { "" }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            roomUrl = url
+                        }
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(8.dp),
+                        )
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Public,
+                        contentDescription = null,
+                        tint = VisioColors.Primary500,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = slug,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (host.isNotEmpty()) {
+                            Text(
+                                text = host,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }

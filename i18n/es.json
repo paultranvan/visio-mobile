@@ -182,5 +182,6 @@
   "call.monitors": "Pantallas",
   "call.windows": "Ventanas",
   "bandwidth.reducedVideo": "Ancho de banda bajo — video reducido",
-  "bandwidth.audioOnly": "Ancho de banda muy bajo — solo audio"
+  "bandwidth.audioOnly": "Ancho de banda muy bajo — solo audio",
+  "home.recentRooms": "Salas recientes"
 }
